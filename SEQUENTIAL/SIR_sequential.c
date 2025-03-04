@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include "lib/cJSON.h"
 
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
 
 int N[MAX_NODES + 1]; // Indici dell'inizio dei vicini per ogni nodo
 int L[MAX_EDGES]; // Lista di adiacenza compressa
-int Levels[MAX_NODES]; // Momento dell'infezione
+int Levels[MAX_NODES]; // Momento dell'infezione: istante in cui viene infettato
 bool Immune[MAX_NODES]; // Stato di immunità
 
 int num_nodes=10;
@@ -108,11 +109,49 @@ void simulate(double p, double q) {
     }
 }
 
+void save_graph(char *filename){
+    cJSON *root = cJSON_CreateObject();
+    
+    cJSON *json_N = cJSON_CreateArray();
+    cJSON *json_L = cJSON_CreateArray();
+
+    for(int i=0; i<MAX_NODES+1; i++){
+        cJSON_AddItemToArray(json_N, cJSON_CreateNumber(N[i]));
+    }
+
+    for(int i=0; i<MAX_EDGES; i++){
+        cJSON_AddItemToArray(json_L, cJSON_CreateNumber(L[i]));
+    }    
+
+    cJSON_AddItemToObject(root, "N", json_N);
+    cJSON_AddItemToObject(root, "L", json_L);
+
+    char *json_string = cJSON_Print(root);
+
+    // Write JSON to file
+    FILE *file = fopen(filename, "w");
+    if (file) {
+        fputs(json_string, file);
+        fclose(file);
+        printf("JSON saved successfully!\n");
+    } else {
+        printf("Error opening file!\n");
+    }
+
+    // Clean up
+    free(json_string);
+    cJSON_Delete(root);
+
+}
+
 int main() {
     double p = 0.5; // Probabilità di infezione
     double q = 0.2; // Probabilità di guarigione
 
     initialize_network();
+
+    save_graph("graph.json");
+
     print_network();
     simulate(p,q);
     return 0;

@@ -6,3 +6,4 @@ SEQUENTIAL/SIR_sequential
 SEQUENTIAL/generate_graph.exe
 .vscode
 SIMD/SIR_SIMD.exe
+SIMD/SIR_SIMD

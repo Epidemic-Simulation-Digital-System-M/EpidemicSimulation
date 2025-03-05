@@ -10,3 +10,6 @@ This is the sequential code of the Epidemic Simulation
 - To compile this code ```gcc SIR_sequential.c lib/cJSON.c -o SIR_sequential```
 - To run ```./SIR_sequential <namegraph.json>```
 
+## SIMD
+- To compile this code ```g++ SIR_SIMD.cpp lib/cJSON.c -mavx2 -o SIR_SIMD```
+

@@ -1,2 +1,5 @@
 SIR_sequential.exe
 SEQUENTIAL/SIR_sequential_frontier.exe
+
+SEQUENTIAL/generate_graph
+SEQUENTIAL/SIR_sequential

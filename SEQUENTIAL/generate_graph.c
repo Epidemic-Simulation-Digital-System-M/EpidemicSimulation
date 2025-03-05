@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include "lib/cJSON.h"
 
-#define MAX_NODES 1000
-#define MAX_EDGES 10000
 
 int *N; // Indici dell'inizio dei vicini per ogni nodo
 int *L; // Lista di adiacenza compressa
@@ -43,7 +41,7 @@ void initialize_network() {
         }
         int neighbor_count = 0;
         
-        for (int j = 0; j < num_neighbors && edge_count < MAX_EDGES; j++) {
+        for (int j = 0; j < num_neighbors; j++) {
             int new_neighbor;
             do {
                 new_neighbor = rand() % num_nodes;

@@ -4,9 +4,6 @@
 #include <stdbool.h>
 #include "lib/cJSON.h"
 
-#define MAX_NODES 1000
-#define MAX_EDGES 10000
-
 int *N; // Indici dell'inizio dei vicini per ogni nodo
 int *L; // Lista di adiacenza compressa
 int *Levels; // Momento dell'infezione: istante in cui viene infettato

@@ -12,8 +12,8 @@ int *L; // Lista di adiacenza compressa
 int *Levels; // Momento dell'infezione: istante in cui viene infettato
 bool *Immune; // Stato di immunità
 
-int num_nodes=10;
-int num_edges=3;
+int num_nodes;
+int num_edges;
 int edge_count = 0;
 
 bool is_valid_neighbor(int *neighbors, int count, int new_node, int node) {
@@ -101,6 +101,10 @@ void save_graph(char *filename){
 }
 
 int main(int argc, char *argv[]) {
+
+    num_nodes = atoi(argv[2]);
+    num_edges = atoi(argv[3]);
+
     initialize_network();
     save_graph(argv[1]);
     printf("Graph generated successfully!\n");

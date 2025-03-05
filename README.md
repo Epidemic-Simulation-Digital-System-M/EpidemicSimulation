@@ -2,6 +2,7 @@
 
 ## Generate Graph
 This script generates graphs
+- To compile this code ```gcc generate_graph.c lib/cJSON.c -o generate_graph```
 - To run ```./generate_graph <namegraph.json>```
 
 ## SEQUENTIAL

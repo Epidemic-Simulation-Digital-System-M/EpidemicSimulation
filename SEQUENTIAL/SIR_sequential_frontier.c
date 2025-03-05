@@ -7,14 +7,59 @@
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
 
+#define SUSCEPTIBLE 0
+#define INFECTED 1
+#define RECOVERED 2
+
 int *N; // Indici dell'inizio dei vicini per ogni nodo
 int *L; // Lista di adiacenza compressa
-int *Levels; // Momento dell'infezione: istante in cui viene infettato
-bool *Immune; // Stato di immunità
+int *Status; // Stato del nodo
 
 int num_nodes;
 int num_edges;
 
+//CODA 
+
+typedef struct Queue {
+    int * data;
+    int front, rear;
+} Queue;
+
+void initQueue(Queue *q) {
+    q->data = (int *)malloc(num_nodes * sizeof(int));
+    q->front = 0;
+    q->rear = 0;
+}
+
+int getSize(Queue *q) {
+    return (q->rear - q->front + num_nodes) % num_nodes;
+}
+
+void enqueue(Queue *q, int value) {
+    if (q->rear < num_nodes) {
+        q->data[q->rear] = value;
+        q->rear=(q->rear+1)%num_nodes;
+    }
+}
+
+int dequeue(Queue *q) {
+    if (getSize(q) > 0) {
+        int res = q->data[q->front];
+        q->front=(q->front+1)%num_nodes;
+        return res;
+    }
+    return -1;
+}
+
+void printQueue(Queue *q) {
+    printf("Queue: ");
+    for (int i = q->front; i != q->rear; i=(i+1)%num_nodes) {
+        printf("%d ", q->data[i]);
+    }
+    printf(" -- rear: %d, front: %d\n", q->rear, q->front);
+}
+
+//READ FILE
 char *read_file(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -78,8 +123,7 @@ void import_network(const char *filename) {
 
     N = (int *)malloc(size_N * sizeof(int));
     L = (int *)malloc(size_L * sizeof(int));
-    Levels = (int *)malloc(num_nodes * sizeof(int));
-    Immune = (bool *)malloc(num_nodes * sizeof(bool));
+    Status = (int *)malloc(num_nodes * sizeof(int));
 
     for (int i = 0; i < size_N; i++) {
         N[i] = cJSON_GetArrayItem(json_N, i)->valueint;
@@ -89,10 +133,9 @@ void import_network(const char *filename) {
     }    
 
     for(int i=0;i<num_nodes;i++){
-        Levels[i] = -1; // Non infetto
-        Immune[i] = false;  // Non immune
+        Status[i]=SUSCEPTIBLE;
     }
-    Levels[0] = 0; // Nodo inizialmente infetto al tempo 0
+    Status[0] = INFECTED; // Nodo inizialmente infetto al tempo 0
 }
 
 void print_network(){
@@ -112,7 +155,7 @@ void print_status(int step, int active_infections) {
     if (active_infections > 0) {
         printf("Infected nodes: ");
         for (int i = 0; i < num_nodes; i++) {
-            if (Levels[i] == step) {
+            if (Status[i] == INFECTED) {
                 printf("%d ", i);
             }
         }
@@ -121,31 +164,38 @@ void print_status(int step, int active_infections) {
 }
 
 void simulate(double p, double q) {
-    int active_infections = 1;
     int step = 0;
 
-    print_status(step, active_infections);
+    Queue frontier;
+    initQueue(&frontier);
+    enqueue(&frontier, 0);
 
-    while (active_infections > 0) {
-        for (int i = 0; i < num_nodes; i++) {
-            if (Levels[i] == step) { // Nodo infetto al passo corrente
-                for (int j = N[i]; j < N[i + 1]; j++) {
-                    int neighbor = L[j];
-                    if (Levels[neighbor] == -1 && !Immune[neighbor] && ((double)rand() / RAND_MAX) < p) {
-                        Levels[neighbor] = step + 1; // Infetto al prossimo step
-                        active_infections++;
-                    }
-                }
-                if (((double)rand() / RAND_MAX) < q) {
-                    Immune[i] = true; // Nodo recuperato
-                    active_infections--;
-                } else {
-                    Levels[i]=step+1; // Nodo può infettare anche al prossimo step
+    int queue_size = getSize(&frontier);
+    printQueue(&frontier);
+    print_status(step, queue_size);
+
+    while (queue_size > 0) {
+        for (int i = 0; i < queue_size; i++) {
+            int node = dequeue(&frontier);
+            for (int j = N[node]; j < N[node + 1]; j++) {
+                int neighbor = L[j];
+                printf("Neighbor: %d\n", neighbor);
+                if (Status[neighbor] == SUSCEPTIBLE && ((double)rand() / RAND_MAX) < p) {
+                    Status[neighbor] = INFECTED; // Infetto al prossimo step
+                    enqueue(&frontier, neighbor);
                 }
             }
+            if (((double)rand() / RAND_MAX) < q) {
+                Status[node] = RECOVERED; // Nodo recuperato
+            } else {
+                // Nodo può infettare anche al prossimo step
+                enqueue(&frontier, node);
+            }    
         }
         step++;
-        print_status(step, active_infections);
+        queue_size = getSize(&frontier);
+        print_status(step, queue_size);
+        printQueue(&frontier);
     }
 }
 

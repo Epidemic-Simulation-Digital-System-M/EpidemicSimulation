@@ -150,7 +150,6 @@ void print_status(int step, int active_infections)
         printf("Infected nodes: ");
         for (int i = 0; i < num_nodes; i++)
         {
-            printf("Debug > Levels[%d]: %d\n", i, Levels[i]);
             if (Levels[i] == step)
             {
                 printf("%d ", i);
@@ -179,8 +178,7 @@ void simulate(double p, double q)
     int active_infections = 1;
     int step = 0;
 
-    print_status(step, active_infections);
-    printf("START SIMULATION\n");
+    // print_status(step, active_infections);
     while (active_infections > 0)
     {
         for (int i = 0; i < num_nodes; i++)
@@ -280,8 +278,7 @@ void simulate(double p, double q)
             if (Levels[i]==step && ((double)rand() / RAND_MAX) < q) {
                 Immune[i] = TRUE; // Nodo recuperato
                 active_infections--;
-                printf("Immune_active_infections: %d\n", active_infections);
-            } else {
+            } else if (Levels[i]==step) {
                 Levels[i]=step+1; // Nodo può infettare anche al prossimo step
             }
         }

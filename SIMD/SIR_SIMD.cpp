@@ -19,6 +19,8 @@ int *Immune; // Stato di immunità passa da bool a int
 
 #define TRUE -1
 #define FALSE 0
+#define SSE_DATALANE 16
+
 
 int num_nodes;
 int num_edges;
@@ -93,10 +95,20 @@ void import_network(const char *filename)
     int size_N = cJSON_GetArraySize(json_N);
     int size_L = cJSON_GetArraySize(json_L);
 
-    N = (int *)malloc(size_N * sizeof(int));
-    L = (int *)malloc(size_L * sizeof(int));
-    Levels = (int *)malloc(num_nodes * sizeof(int));
-    Immune = (int *)malloc(num_nodes * sizeof(int));
+    // N = (int *)malloc(size_N * sizeof(int));
+    // L = (int *)malloc(size_L * sizeof(int));
+
+    // Levels = (int *)malloc(num_nodes * sizeof(int));
+    // Immune = (int *)malloc(num_nodes * sizeof(int));
+
+
+    N = (int *)_mm_malloc(size_N * sizeof(int), SSE_DATALANE);
+    L = (int *)_mm_malloc(size_L * sizeof(int), SSE_DATALANE);
+
+    Levels = (int *)_mm_malloc(num_nodes * sizeof(int), SSE_DATALANE);
+    Immune = (int *)_mm_malloc(num_nodes * sizeof(int), SSE_DATALANE);
+
+
 
     for (int i = 0; i < size_N; i++)
     {
@@ -138,6 +150,7 @@ void print_status(int step, int active_infections)
         printf("Infected nodes: ");
         for (int i = 0; i < num_nodes; i++)
         {
+            printf("Debug > Levels[%d]: %d\n", i, Levels[i]);
             if (Levels[i] == step)
             {
                 printf("%d ", i);
@@ -166,8 +179,8 @@ void simulate(double p, double q)
     int active_infections = 1;
     int step = 0;
 
-    // print_status(step, active_infections);
-
+    print_status(step, active_infections);
+    printf("START SIMULATION\n");
     while (active_infections > 0)
     {
         for (int i = 0; i < num_nodes; i++)
@@ -228,13 +241,46 @@ void simulate(double p, double q)
                     print__mm_register_epi32(final_mask);
 
                     __m128i neighbors_infected = _mm_and_si128(neighbors, final_mask);
+
                     //FIXME
-                    _mm_i32scatter_epi32(Levels, neighbors_infected, _mm_set1_epi32(step + 1), 4);
-                }
+                    //__m128i values = _mm_set1_epi32(step + 1);   
+                    // _mm_i32scatter_epi32(Levels, neighbors_infected, values, 4); //la SCATTER esiste solamente in AVX512 (non compatibile con la CPU)
+
+                    int* neighbors_scatter = (int*) _mm_malloc(4*sizeof(int), SSE_DATALANE);
+                    _mm_storeu_si128((__m128i*)neighbors_scatter, neighbors_infected);
+
+                    if(neighbors_scatter[0] != 0){
+                        Levels[neighbors_scatter[0]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[1] != 0){
+                        Levels[neighbors_scatter[1]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[2] != 0){
+                        Levels[neighbors_scatter[2]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[3] != 0){
+                        Levels[neighbors_scatter[3]] = step +1;
+                        active_infections++;
+                    }
+
+                    printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[0]]);
+                    printf("Levels [%d]: %d\n", neighbors_scatter[1], Levels[neighbors_scatter[1]]);
+                    printf("Levels [%d]: %d\n", neighbors_scatter[2], Levels[neighbors_scatter[2]]);
+                    printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[3]]);
+
+
+                    printf("neighors_infected\n");
+                    print__mm_register_epi32(neighbors_infected);
+               }
             }
-            if (((double)rand() / RAND_MAX) < q) {
+
+            if (Levels[i]==step && ((double)rand() / RAND_MAX) < q) {
                 Immune[i] = TRUE; // Nodo recuperato
                 active_infections--;
+                printf("Immune_active_infections: %d\n", active_infections);
             } else {
                 Levels[i]=step+1; // Nodo può infettare anche al prossimo step
             }

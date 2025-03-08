@@ -5,6 +5,7 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
+#include <intrin.h>
 
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
@@ -54,7 +55,9 @@ char *read_file(const char *filename) {
 }
 
 void import_network(const char *filename) {
-    char *json_string = read_file(filename);
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "../GRAPH_GENERATOR/%s", filename);
+    char *json_string = read_file(filepath);
     if (!json_string) {
         exit(1);
     }

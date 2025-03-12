@@ -4,6 +4,13 @@ SEQUENTIAL/SIR_sequential_frontier.exe
 SEQUENTIAL/generate_graph
 SEQUENTIAL/SIR_sequential
 SEQUENTIAL/generate_graph.exe
-.vscode
+.vscode/
 SIMD/SIR_SIMD.exe
 SIMD/SIR_SIMD
+.vs/
+
+CUDA/EpidemicCUDA/EpidemicCUDA
+CUDA/EpidemicCUDA/x64/
+CUDA/EpidemicCUDA/EpidemicCUDA.sln
+CUDA/EpidemicCUDA/EpidemicCUDA.vcxproj
+CUDA/EpidemicCUDA/EpidemicCUDA.vcxproj.user

@@ -5,7 +5,6 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
-#include <intrin.h>
 
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
@@ -157,8 +156,8 @@ void simulate(double p, double q) {
 
 int main(int argc, char *argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 0.5; // Probabilità di infezione
-    double q = 0.2; // Probabilità di guarigione
+    double p = 2; // Probabilità di infezione
+    double q = 2; // Probabilità di guarigione
 
     import_network(argv[1]);
 

@@ -207,11 +207,7 @@ void simulate(double p, double q) {
 
         step++;
         print_status(step, active_infections,d_Levels);
-        
-        if (step==4)
-		{
-			break;
-		}
+      
     }
 
     cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);

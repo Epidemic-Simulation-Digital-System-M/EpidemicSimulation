@@ -253,49 +253,49 @@ void simulate(double p, double q)
 
                     __m256i neighbors_infected = _mm256_and_si256(neighbors, final_mask);
 
-                    __m256i values = _mm256_set1_epi32(step + 1);   
-                    _mm256_i32scatter_epi32(Levels, neighbors_infected, values, 8); //la SCATTER esiste solamente in AVX512 (non compatibile con la CPU)
+                    // __m256i values = _mm256_set1_epi32(step + 1);   
+                    // _mm256_i32scatter_epi32(Levels, neighbors_infected, values, 8); //la SCATTER esiste solamente in AVX512 (non compatibile con la CPU)
                     
-                    // int* neighbors_scatter = (int*) _mm_malloc(8*sizeof(int), SSE_DATALANE);
-                    // _mm256_storeu_si256((__m256i*)neighbors_scatter, neighbors_infected);
+                    int* neighbors_scatter = (int*) _mm_malloc(8*sizeof(int), SSE_DATALANE);
+                    _mm256_storeu_si256((__m256i*)neighbors_scatter, neighbors_infected);
 
-                    // if(neighbors_scatter[0] != 0){
-                    //     Levels[neighbors_scatter[0]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[1] != 0){
-                    //     Levels[neighbors_scatter[1]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[2] != 0){
-                    //     Levels[neighbors_scatter[2]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[3] != 0){
-                    //     Levels[neighbors_scatter[3]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[4] != 0){
-                    //     Levels[neighbors_scatter[4]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[5] != 0){
-                    //     Levels[neighbors_scatter[5]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[6] != 0){
-                    //     Levels[neighbors_scatter[6]] = step +1;
-                    //     active_infections++;
-                    // }
-                    // if(neighbors_scatter[7] != 0){
-                    //     Levels[neighbors_scatter[7]] = step +1;
-                    //     active_infections++;
-                    // }
+                    if(neighbors_scatter[0] != 0){
+                        Levels[neighbors_scatter[0]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[1] != 0){
+                        Levels[neighbors_scatter[1]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[2] != 0){
+                        Levels[neighbors_scatter[2]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[3] != 0){
+                        Levels[neighbors_scatter[3]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[4] != 0){
+                        Levels[neighbors_scatter[4]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[5] != 0){
+                        Levels[neighbors_scatter[5]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[6] != 0){
+                        Levels[neighbors_scatter[6]] = step +1;
+                        active_infections++;
+                    }
+                    if(neighbors_scatter[7] != 0){
+                        Levels[neighbors_scatter[7]] = step +1;
+                        active_infections++;
+                    }
 
-                    //printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[0]]);
-                    //printf("Levels [%d]: %d\n", neighbors_scatter[1], Levels[neighbors_scatter[1]]);
-                    //printf("Levels [%d]: %d\n", neighbors_scatter[2], Levels[neighbors_scatter[2]]);
-                    //printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[3]]);
+                    // printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[0]]);
+                    // printf("Levels [%d]: %d\n", neighbors_scatter[1], Levels[neighbors_scatter[1]]);
+                    // printf("Levels [%d]: %d\n", neighbors_scatter[2], Levels[neighbors_scatter[2]]);
+                    // printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[3]]);
 
 
                     //printf("neighors_infected\n");

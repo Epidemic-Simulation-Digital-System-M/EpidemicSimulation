@@ -313,6 +313,12 @@ void simulate(double p, double q)
         step++;
         //print_status(step, active_infections);
     }
+
+    //FREE
+    _mm_free(N);
+    _mm_free(L);
+    _mm_free(Levels);
+    _mm_free(Immune);
 }
 
 int main(int argc, char *argv[])

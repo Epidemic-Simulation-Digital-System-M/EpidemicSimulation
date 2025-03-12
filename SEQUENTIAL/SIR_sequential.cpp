@@ -151,6 +151,10 @@ void simulate(double p, double q) {
         step++;
         //print_status(step, active_infections);
     }
+    free(N);
+    free(L);
+    free(Levels);
+    free(Immune);
 }
 
 

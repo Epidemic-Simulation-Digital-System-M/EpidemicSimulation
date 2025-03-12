@@ -2,6 +2,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <curand_kernel.h>
+#include <device_atomic_functions.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
+
 
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
@@ -21,6 +23,7 @@ bool* Immune; // Stato di immunità
 
 int num_nodes;
 int num_edges;
+int size_L;
 
 char* read_file(const char* filename) {
     FILE* file = fopen(filename, "r");
@@ -83,7 +86,7 @@ void import_network(const char* filename) {
     cJSON* json_L = cJSON_GetObjectItem(root, "L");
 
     int size_N = cJSON_GetArraySize(json_N);
-    int size_L = cJSON_GetArraySize(json_L);
+    size_L = cJSON_GetArraySize(json_L);
 
     N = (int*)malloc(size_N * sizeof(int));
     L = (int*)malloc(size_L * sizeof(int));
@@ -116,9 +119,10 @@ void print_network() {
     printf("\n");
 }
 
-void print_status(int step, int active_infections) {
+void print_status(int step, int active_infections, int *d_Levels) {
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0) {
+        cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
         printf("Infected nodes: ");
         for (int i = 0; i < num_nodes; i++) {
             if (Levels[i] == step) {
@@ -143,33 +147,37 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 
 	curandState state;
 	curand_init(0, tid_in_warp, 0, &state);
-
+    
 	for (int i = start_index; i < final_index; i++) {
         if (d_Levels[i] == step) { //Il nodo è infetto 
             for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j+=32) {
                 int neighbor = d_L[j];
-				printf("Thread %d: Nodo%d %d\n", tid_in_warp, neighbor);
+				//printf("Thread %d: Nodo %d Vicino %d\n", tid_in_warp,i, neighbor);
                 if (d_Levels[neighbor] == -1 && !d_Immune[neighbor] && (curand_uniform(&state) < p)) {
-                    d_Levels[neighbor] = step + 1; // Infetto al prossimo step
-                    //atomicAdd(*d_active_infections, 1);
+                    // Infetto al prossimo step
+                    // Usa atomicCAS per evitare doppie infezioni
+                    int old_level = atomicCAS(&d_Levels[neighbor], -1, step + 1);
+                    if (old_level == -1) {  // Solo il primo thread che infetta il nodo lo conta
+                        atomicAdd(d_active_infections, 1);
+                    }
                 }
             }
             if (curand_uniform(&state) < q) {
                 d_Immune[i] = true; // Nodo recuperato
-                //atomicSub(*d_active_infections, 1);
+                if (tid_in_warp == 0) {
+                    atomicSub(d_active_infections, 1);
+                }
             }
             else {
                 d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
             }
         }
 	}
-
 }
 
 void simulate(double p, double q) {
     int active_infections = 1;
     int step = 0;
-
 
 	//Device variables
     int* d_N, * d_L, * d_Levels;
@@ -177,27 +185,33 @@ void simulate(double p, double q) {
     int* d_active_infections;
 
 	cudaMalloc(&d_N, num_nodes * sizeof(int));
-	cudaMalloc(&d_L, num_edges * sizeof(int));
+	cudaMalloc(&d_L, size_L * sizeof(int));
 	cudaMalloc(&d_Levels, num_nodes * sizeof(int));
 	cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
 	cudaMalloc(&d_active_infections, sizeof(int));
 
 	cudaMemcpy(d_N, N, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_L, L, num_edges * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    print_status(step, active_infections);
+    print_status(step, active_infections,d_Levels);
 
     while (active_infections > 0) {
         
         //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
-		simulate_step <<<1, num_nodes/32 + 1 >>> (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
+		simulate_step <<<1, num_nodes >>> (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
+		cudaDeviceSynchronize();
         cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
+
         step++;
-        print_status(step, active_infections);
-		break;
+        print_status(step, active_infections,d_Levels);
+        
+        if (step==4)
+		{
+			break;
+		}
     }
 
     cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
@@ -217,10 +231,10 @@ void simulate(double p, double q) {
 
 int main(int argc, char* argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 2; // Probabilità di infezione
-    double q = 2; // Probabilità di guarigione
+    double p = 1; // Probabilità di infezione
+    double q = 1; // Probabilità di guarigione
 
-    import_network("graph1.json");
+    import_network("graph100_100.json");
 
     print_network();
     simulate(p, q);

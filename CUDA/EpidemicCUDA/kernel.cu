@@ -1,121 +1,228 @@
 ﻿
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include <curand_kernel.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdint.h>
+#include "lib/cJSON.h"
+#include <emmintrin.h>
+#include <immintrin.h>
 
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+#define MAX_NODES 1000
+#define MAX_EDGES 10000
 
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+int* N; // Indici dell'inizio dei vicini per ogni nodo
+int* L; // Lista di adiacenza compressa
+int* Levels; // Momento dell'infezione: istante in cui viene infettato
+bool* Immune; // Stato di immunità
+
+int num_nodes;
+int num_edges;
+
+char* read_file(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("Error opening file!\n");
+        return NULL;
+    }
+
+    char* json_string = NULL;
+    size_t size = 0;
+    size_t capacity = 128;  // Initial buffer size
+    json_string = (char*)malloc(capacity);
+    if (!json_string) {
+        printf("Memory allocation failed!\n");
+        fclose(file);
+        return NULL;
+    }
+
+    int ch;
+    while ((ch = fgetc(file)) != EOF) {
+        json_string[size++] = (char)ch;
+        // Resize buffer if needed
+        if (size >= capacity - 1) {
+            capacity *= 2;  // Double the buffer size
+            json_string = (char*)realloc(json_string, capacity);
+            if (!json_string) {
+                printf("Memory reallocation failed!\n");
+                fclose(file);
+                return NULL;
+            }
+        }
+    }
+    json_string[size] = '\0';  // Null-terminate the string
+    fclose(file);
+    return json_string;
 }
 
-int main()
-{
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
-
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
+void import_network(const char* filename) {
+    char filepath[256];
+    snprintf(filepath, sizeof(filepath), "../../GRAPH_GENERATOR/%s", filename);
+    char* json_string = read_file(filepath);
+    if (!json_string) {
+        exit(1);
     }
 
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
-
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
+    cJSON* root = cJSON_Parse(json_string);
+    free(json_string);  // Free memory after parsing
+    if (!root) {
+        printf("Error parsing JSON!\n");
+        return;
     }
 
+    cJSON* json_numNodes = cJSON_GetObjectItem(root, "num_nodes");
+    cJSON* json_numEdges = cJSON_GetObjectItem(root, "num_edges");
+    num_nodes = json_numNodes->valueint;
+    num_edges = json_numEdges->valueint;
+
+    // Extract arrays
+    cJSON* json_N = cJSON_GetObjectItem(root, "N");
+    cJSON* json_L = cJSON_GetObjectItem(root, "L");
+
+    int size_N = cJSON_GetArraySize(json_N);
+    int size_L = cJSON_GetArraySize(json_L);
+
+    N = (int*)malloc(size_N * sizeof(int));
+    L = (int*)malloc(size_L * sizeof(int));
+    Levels = (int*)malloc(num_nodes * sizeof(int));
+    Immune = (bool*)malloc(num_nodes * sizeof(bool));
+
+    for (int i = 0; i < size_N; i++) {
+        N[i] = cJSON_GetArrayItem(json_N, i)->valueint;
+    }
+    for (int i = 0; i < size_L; i++) {
+        L[i] = cJSON_GetArrayItem(json_L, i)->valueint;
+    }
+
+    for (int i = 0;i < num_nodes;i++) {
+        Levels[i] = -1; // Non infetto
+        Immune[i] = false;  // Non immune
+    }
+    Levels[0] = 0; // Nodo inizialmente infetto al tempo 0
+}
+
+void print_network() {
+    printf("Network:\n");
+    for (int i = 0; i < num_nodes; i++) {
+        printf("%d: ", i);
+        for (int j = N[i]; j < N[i + 1]; j++) {
+            printf("%d ", L[j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+void print_status(int step, int active_infections) {
+    printf("Step %d: %d active infections\n", step, active_infections);
+    if (active_infections > 0) {
+        printf("Infected nodes: ");
+        for (int i = 0; i < num_nodes; i++) {
+            if (Levels[i] == step) {
+                printf("%d ", i);
+            }
+        }
+        printf("\n");
+    }
+}
+
+
+__global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune, int num_nodes, double p, double q, int step, int* d_active_infections) {
+	int tid_in_warp = threadIdx.x%32;
+	int warp_id = threadIdx.x / 32;
+
+	int start_index = warp_id * 32;
+    
+	int final_index = start_index + 32;
+	if (final_index > num_nodes) {
+		final_index = num_nodes;
+	}
+
+	curandState state;
+	curand_init(0, tid_in_warp, 0, &state);
+
+	for (int i = start_index; i < final_index; i++) {
+        if (d_Levels[i] == step) { //Il nodo è infetto 
+            for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j+=32) {
+                int neighbor = d_L[j];
+				printf("Thread %d: Nodo%d %d\n", tid_in_warp, neighbor);
+                if (d_Levels[neighbor] == -1 && !d_Immune[neighbor] && (curand_uniform(&state) < p)) {
+                    d_Levels[neighbor] = step + 1; // Infetto al prossimo step
+                    //atomicAdd(*d_active_infections, 1);
+                }
+            }
+            if (curand_uniform(&state) < q) {
+                d_Immune[i] = true; // Nodo recuperato
+                //atomicSub(*d_active_infections, 1);
+            }
+            else {
+                d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
+            }
+        }
+	}
+
+}
+
+void simulate(double p, double q) {
+    int active_infections = 1;
+    int step = 0;
+
+
+	//Device variables
+    int* d_N, * d_L, * d_Levels;
+    bool* d_Immune;
+    int* d_active_infections;
+
+	cudaMalloc(&d_N, num_nodes * sizeof(int));
+	cudaMalloc(&d_L, num_edges * sizeof(int));
+	cudaMalloc(&d_Levels, num_nodes * sizeof(int));
+	cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
+	cudaMalloc(&d_active_infections, sizeof(int));
+
+	cudaMemcpy(d_N, N, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_L, L, num_edges * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
+
+    print_status(step, active_infections);
+
+    while (active_infections > 0) {
+        
+        //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
+		simulate_step <<<1, num_nodes/32 + 1 >>> (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
+        cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
+        step++;
+        print_status(step, active_infections);
+		break;
+    }
+
+    cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(Immune, d_Immune, num_nodes * sizeof(bool), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_N);
+    cudaFree(d_L);
+    cudaFree(d_Levels);
+    cudaFree(d_Immune);
+    cudaFree(d_active_infections);
+
+    free(N);
+    free(L);
+    free(Levels);
+    free(Immune);
+}
+
+int main(int argc, char* argv[]) {
+    //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
+    double p = 2; // Probabilità di infezione
+    double q = 2; // Probabilità di guarigione
+
+    import_network("graph1.json");
+
+    print_network();
+    simulate(p, q);
     return 0;
-}
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-    int *dev_a = 0;
-    int *dev_b = 0;
-    int *dev_c = 0;
-    cudaError_t cudaStatus;
-
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
-
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
-
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
-    
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-    
-    return cudaStatus;
 }

@@ -5,6 +5,7 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
+#include <random>
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -12,15 +13,14 @@
 #include <x86intrin.h>
 #endif
 
-int *N;       // Indici dell'inizio dei vicini per ogni nodo
-int *L;       // Lista di adiacenza compressa
-int *Levels;  // Momento dell'infezione: istante in cui viene infettato 
+int *N;      // Indici dell'inizio dei vicini per ogni nodo
+int *L;      // Lista di adiacenza compressa
+int *Levels; // Momento dell'infezione: istante in cui viene infettato
 int *Immune; // Stato di immunità passa da bool a int
 
 #define TRUE -1
 #define FALSE 0
-#define SSE_DATALANE 16
-
+#define AVX_DATALANE 32
 
 int num_nodes;
 int num_edges;
@@ -103,14 +103,11 @@ void import_network(const char *filename)
     // Levels = (int *)malloc(num_nodes * sizeof(int));
     // Immune = (int *)malloc(num_nodes * sizeof(int));
 
+    N = (int *)_mm_malloc(size_N * sizeof(int), AVX_DATALANE);
+    L = (int *)_mm_malloc(size_L * sizeof(int), AVX_DATALANE);
 
-    N = (int *)_mm_malloc(size_N * sizeof(int), SSE_DATALANE);
-    L = (int *)_mm_malloc(size_L * sizeof(int), SSE_DATALANE);
-
-    Levels = (int *)_mm_malloc(num_nodes * sizeof(int), SSE_DATALANE);
-    Immune = (int *)_mm_malloc(num_nodes * sizeof(int), SSE_DATALANE);
-
-
+    Levels = (int *)_mm_malloc(num_nodes * sizeof(int), AVX_DATALANE);
+    Immune = (int *)_mm_malloc(num_nodes * sizeof(int), AVX_DATALANE);
 
     for (int i = 0; i < size_N; i++)
     {
@@ -149,10 +146,20 @@ void print_status(int step, int active_infections)
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0)
     {
-        printf("Infected nodes: ");
+        printf("Infected nodes: \n");
         for (int i = 0; i < num_nodes; i++)
         {
             if (Levels[i] == step)
+            {
+                printf("%d ", i);
+            }
+            else{}
+        }
+        printf("\n");
+        printf("Other Nodes: \n");
+        for (int i = 0; i < num_nodes; i++)
+        {
+            if (Levels[i] != step)
             {
                 printf("%d ", i);
             }
@@ -161,15 +168,18 @@ void print_status(int step, int active_infections)
     }
 }
 
-void print__mm_register_ps(__m256 reg) {
+void print__mm_register_ps(__m256 reg)
+{
     float values[8];
     _mm256_storeu_ps(values, reg); // Memorizza il registro in un array
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         printf("XMM[%d]: %f\n", i, values[i]);
     }
 }
 
-void print__mm_register_epi32(__m256i reg){
+void print__mm_register_epi32(__m256i reg)
+{
     printf("XMM[7]: %d\n", _mm256_extract_epi32(reg, 7));
     printf("XMM[6]: %d\n", _mm256_extract_epi32(reg, 6));
     printf("XMM[5]: %d\n", _mm256_extract_epi32(reg, 5));
@@ -180,141 +190,145 @@ void print__mm_register_epi32(__m256i reg){
     printf("XMM[0]: %d\n", _mm256_extract_epi32(reg, 0));
 }
 
+__m256 random_m256_01() {
+    alignas(32) float values[8]; // Ensure proper alignment for AVX
+    std::random_device rd;  // Random seed
+    std::mt19937 gen(rd()); // Mersenne Twister RNG
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+    for (int i = 0; i < 8; i++) {
+        values[i] = dist(gen); // Generate random float in [0,1]
+    }
+
+    return _mm256_load_ps(values); // Load values into an AVX register
+}   
+
 void simulate(double p, double q)
 {
     int active_infections = 1;
     int step = 0;
 
     __m256 probability = _mm256_set1_ps(p);
-    __m256i minus1 =_mm256_set1_epi32(-1);
+    __m256i minus1 = _mm256_set1_epi32(-1);
     __m256i zeros = _mm256_set1_epi32(0);
 
-    //print_status(step, active_infections);
-    
+    print_status(step, active_infections);
+
     while (active_infections > 0)
     {
         for (int i = 0; i < num_nodes; i++)
         {
-            if (Levels[i] == step && Immune[i] == FALSE)//controllo per il nodo 0
-            { // Nodo infetto al passo corrente
-                int num_neighbors = N[i + 1] - N[i];                
+            if (Levels[i] == step && Immune[i] == FALSE) // controllo per il nodo 0
+            {                                            // Nodo infetto al passo corrente
+                int num_neighbors = N[i + 1] - N[i];
                 int remainder = num_neighbors % 8;
-                //printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
+                // printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
 
                 __m256i neighbors;
-                
-                for (int j = 0; j < num_neighbors; j+=8){
+
+                for (int j = 0; j < num_neighbors; j += 8)
+                {
 
                     neighbors = _mm256_loadu_si256((__m256i *)&L[N[i] + j]);
 
-                    if(4*(j+1)>num_neighbors && remainder > 0){ //ultimo vettore
-                        __m256i mask = _mm256_set_epi32(0, remainder > 6 ? -1 : 0, remainder > 5 ? -1 : 0, remainder > 4 ? -1 : 0,
-                            remainder > 3 ? -1 : 0, remainder > 2 ? -1 : 0, remainder > 1 ? -1 : 0, -1 );
+                    if (8 * (j + 1) > num_neighbors && remainder > 0)
+                    { // ultimo vettore
+                        __m256i mask = _mm256_set_epi32(
+                            0,
+                            remainder > 6 ? -1 : 0,
+                            remainder > 5 ? -1 : 0,
+                            remainder > 4 ? -1 : 0,
+                            remainder > 3 ? -1 : 0,
+                            remainder > 2 ? -1 : 0,
+                            remainder > 1 ? -1 : 0,
+                            -1);
                         neighbors = _mm256_and_si256(neighbors, mask);
                     }
-
-
-                    
-                    //printf("neighbors\n");
-                    //print__mm_register_epi32(neighbors);
-                    
+                    // printf("Neighbors: \n");
+                    // print__mm_register_epi32(neighbors);
 
                     __m256i Levels_SIMD = _mm256_i32gather_epi32(Levels, neighbors, 4);
                     __m256i Immune_SIMD = _mm256_i32gather_epi32(Immune, neighbors, 4);
 
-                    //printf("Levels_SIMD\n");
-                    //print__mm_register_epi32(Levels_SIMD);
-                    //printf("Immune_SIMD\n");
-                    //print__mm_register_epi32(Immune_SIMD);
-                    
                     __m256i mask_susceptible = _mm256_cmpeq_epi32(Levels_SIMD, minus1);
                     __m256i mask_not_immune = _mm256_cmpeq_epi32(Immune_SIMD, zeros);
                     __m256i infection_mask = _mm256_and_si256(mask_susceptible, mask_not_immune);
-
-                    //printf("infection_mask\n");
-                    //print__mm_register_epi32(infection_mask);
-
-                    __m256 random = _mm256_set_ps((float)rand()/RAND_MAX,(float)rand()/RAND_MAX,(float)rand()/RAND_MAX,(float)rand()/RAND_MAX,
-                    (float)rand()/RAND_MAX,(float)rand()/RAND_MAX,(float)rand()/RAND_MAX,(float)rand()/RAND_MAX);
-   
-                    //printf("random\n");
-                    //print__mm_register_ps(random);
-   
-                    __m256 infection_probability = _mm256_cmp_ps(random, probability, _CMP_LT_OS);
-   
-                    //printf("infection_probability\n");
-                    //print__mm_register_ps(infection_probability);
-
-   
-                    __m256i final_mask = _mm256_and_si256(_mm256_castps_si256(infection_probability), infection_mask);
-   
-                    //printf("final_mask\n");
-                    //print__mm_register_epi32(final_mask);
-
-                    __m256i neighbors_infected = _mm256_and_si256(neighbors, final_mask);
-
-                    // __m256i values = _mm256_set1_epi32(step + 1);   
-                    // _mm256_i32scatter_epi32(Levels, neighbors_infected, values, 8); //la SCATTER esiste solamente in AVX512 (non compatibile con la CPU)
                     
-                    int* neighbors_scatter = (int*) _mm_malloc(8*sizeof(int), SSE_DATALANE);
-                    _mm256_storeu_si256((__m256i*)neighbors_scatter, neighbors_infected);
+                    // printf("Infection Mask: \n");
+                    // print__mm_register_epi32(infection_mask);
 
-                    if(neighbors_scatter[0] != 0){
-                        Levels[neighbors_scatter[0]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[1] != 0){
-                        Levels[neighbors_scatter[1]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[2] != 0){
-                        Levels[neighbors_scatter[2]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[3] != 0){
-                        Levels[neighbors_scatter[3]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[4] != 0){
-                        Levels[neighbors_scatter[4]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[5] != 0){
-                        Levels[neighbors_scatter[5]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[6] != 0){
-                        Levels[neighbors_scatter[6]] = step +1;
-                        active_infections++;
-                    }
-                    if(neighbors_scatter[7] != 0){
-                        Levels[neighbors_scatter[7]] = step +1;
-                        active_infections++;
-                    }
+                    __m256 random = random_m256_01();
+                    
+                    __m256 infection_probability = _mm256_cmp_ps(random, probability, _CMP_LT_OS);
+                    // printf("Infection Probability: \n");
+                    // print__mm_register_ps(infection_probability);
+                    __m256i final_mask = _mm256_and_si256(_mm256_castps_si256(infection_probability), infection_mask);
+                    __m256i neighbors_infected = _mm256_and_si256(neighbors, final_mask);
+                    // printf("FinalMask: \n");
+                    // print__mm_register_epi32(final_mask);
+                    // printf("Neighbors Infected: \n");
+                    // print__mm_register_epi32(neighbors_infected);
+                    //_mm256_maskstore_epi32(Levels, neighbors_infected, _mm256_set1_epi32(step + 1));
 
-                    // printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[0]]);
-                    // printf("Levels [%d]: %d\n", neighbors_scatter[1], Levels[neighbors_scatter[1]]);
-                    // printf("Levels [%d]: %d\n", neighbors_scatter[2], Levels[neighbors_scatter[2]]);
-                    // printf("Levels [%d]: %d\n", neighbors_scatter[0], Levels[neighbors_scatter[3]]);
+                    alignas(32) int indices[8]; // Store extracted indices
+                    _mm256_store_si256((__m256i*)indices, neighbors_infected); // Extract all at once
 
-
-                    //printf("neighors_infected\n");
-                    //print__mm_register_epi32(neighbors_infected);
+                    if (indices[0] != 0){
+                        Levels[indices[0]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[1] != 0){
+                        Levels[indices[1]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[2] != 0){
+                        Levels[indices[2]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[3] != 0){
+                        Levels[indices[3]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[4] != 0){
+                        Levels[indices[4]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[5] != 0){
+                        Levels[indices[5]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[6] != 0){
+                        Levels[indices[6]] = step + 1;
+                        active_infections++;
+                    }
+                    if (indices[7] != 0){
+                        Levels[indices[7]] = step + 1;
+                        active_infections++;
+                    }
+                    // int bitmask_infected = _mm256_movemask_ps(_mm256_castsi256_ps(final_mask)); // Get 8-bit mask
+                    // active_infections += _mm_popcnt_u32(bitmask_infected);  // Count set bits
                 }
             }
 
-            if (Levels[i]==step && ((double)rand() / RAND_MAX) < q) {
+            if (Levels[i] == step && ((double)rand() / RAND_MAX) < q)
+            {
                 Immune[i] = TRUE; // Nodo recuperato
                 active_infections--;
-            } else if (Levels[i]==step) {
-                Levels[i]=step+1; // Nodo può infettare anche al prossimo step
+            }
+            else if (Levels[i] == step)
+            {
+                Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
             }
         }
         step++;
-        //print_status(step, active_infections);
+        print_status(step, active_infections);
+        if (step == 5)
+        {
+            return;
+        }
     }
 
-    //FREE
+    // FREE
     _mm_free(N);
     _mm_free(L);
     _mm_free(Levels);
@@ -326,9 +340,10 @@ int main(int argc, char *argv[])
     // Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
     double p = 2; // Probabilità di infezione
     double q = 2; // Probabilità di guarigione
+
     import_network(argv[1]);
 
-    //print_network();
+    // print_network();
     uint64_t clock_counter_start = __rdtsc();
     simulate(p, q);
     uint64_t clock_counter_end = __rdtsc();

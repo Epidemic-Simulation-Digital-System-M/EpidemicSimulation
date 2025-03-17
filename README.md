@@ -15,6 +15,9 @@ This is the sequential code of the Epidemic Simulation
 
 
 ## CUDA
+- To compile this code ```nvcc ./kernel.cu lib/cJSON.c -o ./kernel```
+
+
 ### Step
 - 1 Warp dove i suoi threads partono da punti diversi della rete (facendo in modo che il carico di nodi da esplorare sia bilanciato)
 - Ogni Threads Esploratore genera altro warp (se il nodo che sta verificando è infetto) per "esplorare" i nodi vicini

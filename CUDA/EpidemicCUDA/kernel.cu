@@ -146,7 +146,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 	}
 
 	curandState state;
-	curand_init(0, tid_in_warp, 0, &state);
+	curand_init(step, tid_in_warp, 0, &state);
     
 	for (int i = start_index; i < final_index; i++) {
         if (d_Levels[i] == step) { //Il nodo è infetto 
@@ -159,17 +159,20 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                     int old_level = atomicCAS(&d_Levels[neighbor], -1, step + 1);
                     if (old_level == -1) {  // Solo il primo thread che infetta il nodo lo conta
                         atomicAdd(d_active_infections, 1);
+						//printf("Thread %d: Nodo %d infetta %d\n", tid_in_warp, i, neighbor);
                     }
                 }
             }
-            if (curand_uniform(&state) < q) {
-                d_Immune[i] = true; // Nodo recuperato
-                if (tid_in_warp == 0) {
+            if (tid_in_warp == 0) {
+                if (curand_uniform(&state) < q) {
+                    d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
+					//printf("Thread %d: Nodo %d guarito\n", tid_in_warp, i);
                 }
-            }
-            else {
-                d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
+                else {
+                    d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
+                    //printf("Thread %d: Nodo %d rimane infetto\n", tid_in_warp, i);
+                }
             }
         }
 	}
@@ -207,7 +210,6 @@ void simulate(double p, double q) {
 
         step++;
         print_status(step, active_infections,d_Levels);
-      
     }
 
     cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
@@ -227,10 +229,10 @@ void simulate(double p, double q) {
 
 int main(int argc, char* argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 1; // Probabilità di infezione
-    double q = 1; // Probabilità di guarigione
+    double p = 0.8; // Probabilità di infezione
+    double q = 0.4; // Probabilità di guarigione
 
-    import_network("graph100_100.json");
+    import_network(argv[1]);
 
     print_network();
     simulate(p, q);

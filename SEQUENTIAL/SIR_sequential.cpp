@@ -1,10 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdbool.h>
 #include <stdint.h>
-#include <intrin.h>
 #include "lib/cJSON.h"
+#include <emmintrin.h>
+#include <immintrin.h>
+#include <random>
+
+#ifdef _WIN32
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
 
 #define MAX_NODES 1000
 #define MAX_EDGES 10000

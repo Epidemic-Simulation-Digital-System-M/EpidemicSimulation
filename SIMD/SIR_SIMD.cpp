@@ -190,18 +190,18 @@ void print__mm_register_epi32(__m256i reg)
     printf("XMM[0]: %d\n", _mm256_extract_epi32(reg, 0));
 }
 
-__m256 random_m256_01() {
-    alignas(32) float values[8]; // Ensure proper alignment for AVX
-    std::random_device rd;  // Random seed
-    std::mt19937 gen(rd()); // Mersenne Twister RNG
-    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+// __m256 random_m256_01() {
+//     alignas(32) float values[8]; // Ensure proper alignment for AVX
+//     std::random_device rd;  // Random seed
+//     std::mt19937 gen(rd()); // Mersenne Twister RNG
+//     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
-    for (int i = 0; i < 8; i++) {
-        values[i] = dist(gen); // Generate random float in [0,1]
-    }
+//     for (int i = 0; i < 8; i++) {
+//         values[i] = dist(gen); // Generate random float in [0,1]
+//     }
 
-    return _mm256_load_ps(values); // Load values into an AVX register
-}   
+//     return _mm256_load_ps(values); // Load values into an AVX register
+// }   
 
 void simulate(double p, double q)
 {
@@ -212,7 +212,7 @@ void simulate(double p, double q)
     __m256i minus1 = _mm256_set1_epi32(-1);
     __m256i zeros = _mm256_set1_epi32(0);
 
-    print_status(step, active_infections);
+    // print_status(step, active_infections);
 
     while (active_infections > 0)
     {
@@ -257,7 +257,18 @@ void simulate(double p, double q)
                     // printf("Infection Mask: \n");
                     // print__mm_register_epi32(infection_mask);
 
-                    __m256 random = random_m256_01();
+                    // __m256 random = random_m256_01();
+                    __m256 random = _mm256_set_ps(
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX,
+                        (float)rand()/RAND_MAX
+                    );
+   
                     
                     __m256 infection_probability = _mm256_cmp_ps(random, probability, _CMP_LT_OS);
                     // printf("Infection Probability: \n");
@@ -305,8 +316,6 @@ void simulate(double p, double q)
                         Levels[indices[7]] = step + 1;
                         active_infections++;
                     }
-                    // int bitmask_infected = _mm256_movemask_ps(_mm256_castsi256_ps(final_mask)); // Get 8-bit mask
-                    // active_infections += _mm_popcnt_u32(bitmask_infected);  // Count set bits
                 }
             }
 
@@ -321,11 +330,11 @@ void simulate(double p, double q)
             }
         }
         step++;
-        print_status(step, active_infections);
-        if (step == 5)
-        {
-            return;
-        }
+        // print_status(step, active_infections);
+        // if (step == 5)
+        // {
+        //     return;
+        // }
     }
 
     // FREE

@@ -16,6 +16,7 @@
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
 
+
 int* N; // Indici dell'inizio dei vicini per ogni nodo
 int* L; // Lista di adiacenza compressa
 int* Levels; // Momento dell'infezione: istante in cui viene infettato
@@ -125,7 +126,7 @@ void print_network() {
     printf("\n");
 }
 
-void print_status(int step, int active_infections, int *d_Levels) {
+void print_status(int step, int active_infections, int* d_Levels) {
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0) {
         cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
@@ -141,31 +142,32 @@ void print_status(int step, int active_infections, int *d_Levels) {
 
 
 __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune, int num_nodes, double p, double q, int step, int* d_active_infections) {
-	int tid_in_warp = threadIdx.x%32;
-	int warp_id = threadIdx.x / 32;
-
-	int start_index = warp_id * 32;
+    int tid_in_warp = (threadIdx.x) % 32;
     
-	int final_index = start_index + 32;
-	if (final_index > num_nodes) {
-		final_index = num_nodes;
-	}
+    int warp_id = (threadIdx.x + blockIdx.x*blockDim.x) / 32;
 
-	curandState state;
-	curand_init(step, tid_in_warp, 0, &state);
-    
-	for (int i = start_index; i < final_index; i++) {
+    int start_index = warp_id * 32;
+
+    int final_index = start_index + 32;
+    if (final_index > num_nodes) {
+        final_index = num_nodes;
+    }
+
+    curandState state;
+    curand_init(step, tid_in_warp, 0, &state);
+
+    for (int i = start_index; i < final_index; i++) {
         if (d_Levels[i] == step) { //Il nodo è infetto 
-            for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j+=32) {
+            for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j += 32) {
                 int neighbor = d_L[j];
-				//printf("Thread %d: Nodo %d Vicino %d\n", tid_in_warp,i, neighbor);
+                //printf("Thread %d: Nodo %d Vicino %d\n", tid_in_warp,i, neighbor);
                 if (d_Levels[neighbor] == -1 && !d_Immune[neighbor] && (curand_uniform(&state) < p)) {
                     // Infetto al prossimo step
                     // Usa atomicCAS per evitare doppie infezioni
                     int old_level = atomicCAS(&d_Levels[neighbor], -1, step + 1);
                     if (old_level == -1) {  // Solo il primo thread che infetta il nodo lo conta
                         atomicAdd(d_active_infections, 1);
-						//printf("Thread %d: Nodo %d infetta %d\n", tid_in_warp, i, neighbor);
+                        //printf("Thread %d: Nodo %d infetta %d\n", tid_in_warp, i, neighbor);
                     }
                 }
             }
@@ -173,7 +175,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                 if (curand_uniform(&state) < q) {
                     d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
-					//printf("Thread %d: Nodo %d guarito\n", tid_in_warp, i);
+                    //printf("Thread %d: Nodo %d guarito\n", tid_in_warp, i);
                 }
                 else {
                     d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
@@ -181,41 +183,43 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                 }
             }
         }
-	}
+    }
 }
 
 void simulate(double p, double q) {
     int active_infections = 1;
     int step = 0;
 
-	//Device variables
+    //Device variables
     int* d_N, * d_L, * d_Levels;
     bool* d_Immune;
     int* d_active_infections;
 
-	cudaMalloc(&d_N, num_nodes * sizeof(int));
-	cudaMalloc(&d_L, size_L * sizeof(int));
-	cudaMalloc(&d_Levels, num_nodes * sizeof(int));
-	cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
-	cudaMalloc(&d_active_infections, sizeof(int));
+    cudaMalloc(&d_N, num_nodes * sizeof(int));
+    cudaMalloc(&d_L, size_L * sizeof(int));
+    cudaMalloc(&d_Levels, num_nodes * sizeof(int));
+    cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
+    cudaMalloc(&d_active_infections, sizeof(int));
 
-	cudaMemcpy(d_N, N, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_N, N, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    //print_status(step, active_infections,d_Levels);
+    //print_status(step, active_infections, d_Levels);
+
+	int gridSize = (num_nodes + 31) / 32;
 
     while (active_infections > 0) {
-        
+
         //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
-		simulate_step <<<1, num_nodes >>> (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
-		cudaDeviceSynchronize();
+        simulate_step << <gridSize, 32 >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
+        cudaDeviceSynchronize();
         cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
-        //print_status(step, active_infections,d_Levels);
+        //print_status(step, active_infections, d_Levels);
     }
 
     cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
@@ -230,8 +234,8 @@ void simulate(double p, double q) {
 
 int main(int argc, char* argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 0.8; // Probabilità di infezione
-    double q = 0.4; // Probabilità di guarigione
+    double p = 1; // Probabilità di infezione
+    double q = 1; // Probabilità di guarigione
 
     import_network(argv[1]);
 
@@ -248,6 +252,6 @@ int main(int argc, char* argv[]) {
     free(L);
     free(Levels);
     free(Immune);
-    
+
     return 0;
 }

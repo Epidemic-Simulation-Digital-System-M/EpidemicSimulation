@@ -14,4 +14,11 @@ CUDA/EpidemicCUDA/x64/
 CUDA/EpidemicCUDA/EpidemicCUDA.sln
 CUDA/EpidemicCUDA/EpidemicCUDA.vcxproj
 CUDA/EpidemicCUDA/EpidemicCUDA.vcxproj.user
+
+CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2
+CUDA/EpidemicCUDA_v2/x64/
+CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2.sln
+CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2.vcxproj
+CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2.vcxproj.user
+
 GRAPH_GENERATOR/generate_graph.exe

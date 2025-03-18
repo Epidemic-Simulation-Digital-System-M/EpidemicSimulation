@@ -167,7 +167,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                     int old_level = atomicCAS(&d_Levels[neighbor], -1, step + 1);
                     if (old_level == -1) {  // Solo il primo thread che infetta il nodo lo conta
                         atomicAdd(d_active_infections, 1);
-                        printf("Thread %d: Nodo %d infetta %d\n", tid_in_warp, i, neighbor);
+                        //printf("Thread %d Blocco %d: Nodo %d infetta %d\n", threadIdx.x,blockIdx.x, i, neighbor);
                     }
                 }
             }
@@ -175,11 +175,11 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                 if (curand_uniform(&state) < q) {
                     d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
-                    printf("Thread %d: Nodo %d guarito\n", tid_in_warp, i);
+                    //printf("Thread %d Blocco %d: Nodo %d guarito\n", threadIdx.x, blockIdx.x, i);
                 }
                 else {
                     d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
-                    printf("Thread %d: Nodo %d rimane infetto\n", tid_in_warp, i);
+                    //printf("Thread %d Blocco %d: Nodo %d rimane infetto\n", threadIdx.x, blockIdx.x, i);
                 }
             }
         }
@@ -215,7 +215,7 @@ void simulate(double p, double q) {
     while (active_infections > 0) {
 
         //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
-        simulate_step << <gridSize, 32 >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
+        simulate_step << <gridSize, threadsPerBlock >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
         cudaDeviceSynchronize();
         cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 

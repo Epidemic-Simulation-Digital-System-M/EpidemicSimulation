@@ -195,13 +195,13 @@ void simulate(double p, double q) {
     bool* d_Immune;
     int* d_active_infections;
 
-    cudaMalloc(&d_N, num_nodes * sizeof(int));
+    cudaMalloc(&d_N, (num_nodes + 1) * sizeof(int));
     cudaMalloc(&d_L, size_L * sizeof(int));
     cudaMalloc(&d_Levels, num_nodes * sizeof(int));
     cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
     cudaMalloc(&d_active_infections, sizeof(int));
 
-    cudaMemcpy(d_N, N, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_N, N, (num_nodes + 1) * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);

@@ -131,6 +131,7 @@ void simulate(double p, double q) {
                     int neighbor = L[j];
                     if (Levels[neighbor] == -1 && !Immune[neighbor] && ((double)rand() / RAND_MAX) < p) {
                         Levels[neighbor] = step + 1; // Infetto al prossimo step
+                        printf("Node %d infected node %d\n", i, neighbor);
                         active_infections++;
                     }
                 }

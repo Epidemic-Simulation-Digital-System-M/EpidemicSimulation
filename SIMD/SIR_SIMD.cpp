@@ -155,8 +155,8 @@ void print_status(int step, int active_infections)
             }
             else{}
         }
-        /*
         printf("\n");
+        /*
         printf("Other Nodes: \n");
         for (int i = 0; i < num_nodes; i++)
         {
@@ -224,7 +224,8 @@ void simulate(double p, double q)
             {                                            // Nodo infetto al passo corrente
                 int num_neighbors = N[i + 1] - N[i];
                 int remainder = num_neighbors % 8;
-                // printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
+                //printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
+
 
                 __m256i neighbors;
 
@@ -233,7 +234,7 @@ void simulate(double p, double q)
 
                     neighbors = _mm256_loadu_si256((__m256i *)&L[N[i] + j]);
 
-                    if (8 * (j + 1) > num_neighbors && remainder > 0)
+                    if ((j+8) > num_neighbors && remainder > 0)
                     { // ultimo vettore
                         __m256i mask = _mm256_set_epi32(
                             0,
@@ -246,7 +247,8 @@ void simulate(double p, double q)
                             -1);
                         neighbors = _mm256_and_si256(neighbors, mask);
                     }
-                    // printf("Neighbors: \n");
+
+                    // printf("Neighbors after mask: \n");
                     // print__mm_register_epi32(neighbors);
 
                     __m256i Levels_SIMD = _mm256_i32gather_epi32(Levels, neighbors, 4);
@@ -333,8 +335,7 @@ void simulate(double p, double q)
         }
         step++;
         print_status(step, active_infections);
-        // if (step == 5)
-        // {
+        // if(step == 1){
         //     return;
         // }
     }
@@ -354,7 +355,7 @@ int main(int argc, char *argv[])
 
     import_network(argv[1]);
 
-    // print_network();
+    print_network();
     uint64_t clock_counter_start = __rdtsc();
     simulate(p, q);
     uint64_t clock_counter_end = __rdtsc();

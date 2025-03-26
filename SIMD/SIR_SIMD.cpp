@@ -155,6 +155,7 @@ void print_status(int step, int active_infections)
             }
             else{}
         }
+        /*
         printf("\n");
         printf("Other Nodes: \n");
         for (int i = 0; i < num_nodes; i++)
@@ -165,6 +166,7 @@ void print_status(int step, int active_infections)
             }
         }
         printf("\n");
+        */
     }
 }
 
@@ -212,7 +214,7 @@ void simulate(double p, double q)
     __m256i minus1 = _mm256_set1_epi32(-1);
     __m256i zeros = _mm256_set1_epi32(0);
 
-    // print_status(step, active_infections);
+    print_status(step, active_infections);
 
     while (active_infections > 0)
     {
@@ -330,7 +332,7 @@ void simulate(double p, double q)
             }
         }
         step++;
-        // print_status(step, active_infections);
+        print_status(step, active_infections);
         // if (step == 5)
         // {
         //     return;
@@ -347,8 +349,8 @@ void simulate(double p, double q)
 int main(int argc, char *argv[])
 {
     // Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 2; // Probabilità di infezione
-    double q = 2; // Probabilità di guarigione
+    double p = 1; // Probabilità di infezione
+    double q = 1; // Probabilità di guarigione
 
     import_network(argv[1]);
 

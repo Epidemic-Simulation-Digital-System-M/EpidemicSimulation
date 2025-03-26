@@ -173,17 +173,19 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 	
 	int* shared_L = shared_N + blockDim.x+1;
 
-    for (int i = 0; i < blockDim.x + 1 && start_index_block + i <= final_index_block;i++) {
-        shared_N[i] = d_N[start_index_block + i];
-        //if (threadIdx.x == 0)
-		//	printf("shared_N[%d] = %d \n", i, shared_N[i]);
-        
+    // for (int i = 0; i < blockDim.x + 1 && start_index_block + i <= final_index_block;i++) {
+    if (threadIdx.x <= final_index_block - start_index_block) {
+        shared_N[threadIdx.x] = d_N[start_index_block + threadIdx.x];
     }
+	if (threadIdx.x == 0) {
+		shared_N[final_index_block - start_index_block] = d_N[final_index_block];
+	}
+
     __syncthreads();
 
     int shared_L_size = shared_N[final_index_block - start_index_block] - shared_N[0];
 
-    for (int i = 0; i < shared_L_size; i++) {
+    for (int i = threadIdx.x; i < shared_L_size; i+=blockDim.x) {
         shared_L[i] = d_L[shared_N[0] + i];
         //if (threadIdx.x == 0 ) 
         //   printf("shared_L[%d] = %d \n", i, shared_L[i]);

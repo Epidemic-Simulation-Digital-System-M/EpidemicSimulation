@@ -13,9 +13,9 @@
 #include <x86intrin.h>
 #endif
 
-int8_t **Matrix; // Matrice di adiacenza
-int8_t *Levels;  // Momento dell'infezione: istante in cui viene infettato
-int8_t *Immune;  // Stato di immunità passa da bool a int
+int8_t** Matrix; // Matrice di adiacenza
+int8_t* Levels;  // Momento dell'infezione: istante in cui viene infettato
+int8_t* Immune;  // Stato di immunità passa da bool a int
 
 #define TRUE -1
 #define FALSE 0
@@ -100,22 +100,17 @@ void import_network(const char *filename)
     num_nodes_32 = ((num_nodes + 31) / 32) * 32;
 
     Matrix = (int8_t **)_mm_malloc(num_nodes * sizeof(int8_t *), AVX_DATALANE);
-    printf("First Malloc\n");
     for (int i = 0; i < num_nodes; i++)
     {
-        Matrix[i] = (int8_t *)_mm_malloc(num_nodes * sizeof(int8_t), AVX_DATALANE);
-        printf("Second Malloc[%d]\n", i);
-
+        Matrix[i] = (int8_t *)_mm_malloc(num_nodes_32 * sizeof(int8_t), AVX_DATALANE);
     }
 
-    Levels = (int8_t *)_mm_malloc(num_nodes * sizeof(int8_t), AVX_DATALANE);
-    printf("Third Malloc\n");
-    Immune = (int8_t *)_mm_malloc(num_nodes * sizeof(int8_t), AVX_DATALANE);
-    printf("Fourth Malloc\n");
+    Levels = (int8_t *)_mm_malloc(num_nodes_32 * sizeof(int8_t), AVX_DATALANE);
+    Immune = (int8_t *)_mm_malloc(num_nodes_32 * sizeof(int8_t), AVX_DATALANE);
 
     for (int i = 0; i < num_nodes; i++)
     {
-        for (int j = 0; j < num_nodes; j++)
+        for (int j = 0; j < num_nodes_32; j++)
         {
             Matrix[i][j] = 0;
         }
@@ -141,6 +136,7 @@ void import_network(const char *filename)
     for (int i = num_nodes; i < num_nodes_32; i++)
     {
         Levels[i] = -1;
+        Immune[i] = FALSE; // Non immune
     }
     Levels[0] = 0; // Nodo inizialmente infetto al tempo 0
 }
@@ -179,9 +175,6 @@ void print_status(int step, int active_infections)
             if (Levels[i] == step)
             {
                 printf("%d ", i);
-            }
-            else
-            {
             }
         }
         printf("\n");
@@ -287,6 +280,7 @@ void simulate(int8_t p, int8_t q)
         uint8_t mask[32] = {0}; // Inizializza tutto a 0
         mask[i] = 1;            // Per Impostare il byte i-esimo a -1 sostituisci con (0xFF)
         index_mask[i] = _mm256_load_si256((__m256i *)mask);
+        //print__mm_register_epi8(index_mask[i]);
     }
 
     int active_infections = 1;
@@ -296,7 +290,7 @@ void simulate(int8_t p, int8_t q)
     __m256i minus1 = _mm256_set1_epi8(-1);
     __m256i zeros = _mm256_set1_epi8(0);
 
-    // print_status(step, active_infections);
+    //print_status(step, active_infections);
 
     int remainder = num_nodes % 32;
     __m256i remainder_mask = _mm256_set_epi8(0, remainder > 30 ? -1 : 0, remainder > 29 ? -1 : 0, remainder > 28 ? -1 : 0,
@@ -309,8 +303,9 @@ void simulate(int8_t p, int8_t q)
     );
 
     // Array di registri per Levels e Immune
-    __m256i *Levels_array = (__m256i *)_mm_malloc(num_nodes_32 / 32 * sizeof(__m256i *), AVX_DATALANE);
-    //__m256i *Immune_array = (__m256i *)_mm_malloc(num_nodes_32/32 * sizeof(__m256i *), AVX_DATALANE);
+    __m256i *Levels_array = (__m256i *)_mm_malloc(num_nodes_32 / 32 * sizeof(__m256i), AVX_DATALANE);
+    //__m256i *Immune_array = (__m256i *)_mm_malloc(num_nodes_32/32 * sizeof(__m256i), AVX_DATALANE);
+
 
     for (int i = 0; i < num_nodes_32 / 32; i++)
     {
@@ -385,18 +380,18 @@ void simulate(int8_t p, int8_t q)
             _mm256_store_si256((__m256i *)Levels + i, Levels_array[i]);
         }
         step++;
-        // print_status(step, active_infections);
+        //print_status(step, active_infections);
         //  if (step == 1)
         //  {
         //      return;
         //  }
     }
 
-    for (int i = 0; i < num_nodes_32 / 32; i++)
-    {
-        _mm256_storeu_si256((__m256i *)Levels + i, Levels_array[i]);
-        //_mm256_storeu_si256((__m256i *)Immune+i, Immune_array[i]);
-    }
+    // for (int i = 0; i < num_nodes_32 / 32; i++)
+    // {
+    //     _mm256_storeu_si256((__m256i *)Levels + i, Levels_array[i]);
+    //     //_mm256_storeu_si256((__m256i *)Immune+i, Immune_array[i]);
+    // }
 }
 
 int main(int argc, char *argv[])
@@ -407,7 +402,7 @@ int main(int argc, char *argv[])
 
     import_network(argv[1]);
 
-    // print_network();
+    //print_network();
     uint64_t clock_counter_start = __rdtsc();
     simulate(p, q);
     uint64_t clock_counter_end = __rdtsc();
@@ -416,13 +411,9 @@ int main(int argc, char *argv[])
     for (int i = 0; i < num_nodes; i++)
     {
         _mm_free(Matrix[i]);
-        printf("First Free [%d]\n", i);
     }
     _mm_free(Matrix);
-    printf("Second Free\n");
     _mm_free(Immune);
-    printf("Third Free\n");
     _mm_free(Levels);
-    printf("Fourth Free\n");
     return 0;
 }

@@ -151,17 +151,13 @@ void simulate(double p, double q) {
         step++;
         //print_status(step, active_infections);
     }
-    free(N);
-    free(L);
-    free(Levels);
-    free(Immune);
 }
 
 
 int main(int argc, char *argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 2; // Probabilità di infezione
-    double q = 2; // Probabilità di guarigione
+    double p = 0.5; // Probabilità di infezione
+    double q = 0.8; // Probabilità di guarigione
 
     import_network(argv[1]);
 
@@ -170,5 +166,10 @@ int main(int argc, char *argv[]) {
     simulate(p,q);
     uint64_t clock_counter_end = __rdtsc();  
     printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+
+    free(N);
+    free(L);
+    free(Levels);
+    free(Immune);
     return 0;
 }

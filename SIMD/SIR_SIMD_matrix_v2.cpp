@@ -164,8 +164,14 @@ void print_network()
     printf("\n");
 }
 
-void print_status(int step, int active_infections)
+void print_status(int step, int active_infections, __m256i* Levels_array)
 {
+
+    for (int i = 0; i < num_nodes_32 / 32; i++)
+    {
+        _mm256_store_si256((__m256i *)Levels + i, Levels_array[i]);
+    }
+
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0)
     {
@@ -278,7 +284,7 @@ void simulate(int8_t p, int8_t q)
     for (int i = 0; i < 32; i++)
     {
         uint8_t mask[32] = {0}; // Inizializza tutto a 0
-        mask[i] = 1;            // Per Impostare il byte i-esimo a -1 sostituisci con (0xFF)
+        mask[i] = 0xFF;            // Per Impostare il byte i-esimo a -1 sostituisci con (0xFF)
         index_mask[i] = _mm256_load_si256((__m256i *)mask);
         //print__mm_register_epi8(index_mask[i]);
     }
@@ -289,8 +295,10 @@ void simulate(int8_t p, int8_t q)
     __m256i probability = _mm256_set1_epi8(p);
     __m256i minus1 = _mm256_set1_epi8(-1);
     __m256i zeros = _mm256_set1_epi8(0);
+    __m256i ones = _mm256_set1_epi8(1);
 
-    //print_status(step, active_infections);
+    __m256i step_simd = zeros;
+    __m256i step_simd_p1 = zeros;
 
     int remainder = num_nodes % 32;
     __m256i remainder_mask = _mm256_set_epi8(0, remainder > 30 ? -1 : 0, remainder > 29 ? -1 : 0, remainder > 28 ? -1 : 0,
@@ -306,6 +314,8 @@ void simulate(int8_t p, int8_t q)
     __m256i *Levels_array = (__m256i *)_mm_malloc(num_nodes_32 / 32 * sizeof(__m256i), AVX_DATALANE);
     //__m256i *Immune_array = (__m256i *)_mm_malloc(num_nodes_32/32 * sizeof(__m256i), AVX_DATALANE);
 
+    //print_status(step, active_infections, Levels_array);
+
 
     for (int i = 0; i < num_nodes_32 / 32; i++)
     {
@@ -315,11 +325,31 @@ void simulate(int8_t p, int8_t q)
 
     while (active_infections > 0)
     {
-        __m256i step_simd = _mm256_set1_epi8((step + 1));
+        step_simd_p1 = _mm256_add_epi8(step_simd, ones);
         for (int i = 0; i < num_nodes; i++)
         {
-            if (Levels[i] == step) // controllo per il nodo 0
+            /*
+                Levels_array[i/32] AND mask-iesimo 
+                mask_step_iesimo = and mask-iesimo e tutti step
+            */
+            __m256i Levels_simd_i = _mm256_and_si256(Levels_array[i / 32], index_mask[i % 32]);
+            __m256i levels_step_i = _mm256_and_si256(index_mask[i % 32], step_simd);
+            __m256i sub_step_i = _mm256_sub_epi8(Levels_simd_i, levels_step_i);
+            // if(step==1){
+
+            //     printf("Levels_simd[%d]: \n", i/32);
+            //     print__mm_register_epi8(Levels_array[i / 32]);
+            //     printf("Levels_simd_i [%d]: \n", i);
+            //     print__mm_register_epi8(Levels_simd_i);
+            //     printf("levels_step_i[%d]: \n", i);
+            //     print__mm_register_epi8(levels_step_i);
+            //     printf("sub_step_i[%d]: \n", i);
+            //     print__mm_register_epi8(sub_step_i);
+            // }
+            
+            if (_mm256_testz_si256(sub_step_i, sub_step_i)) // controllo per il nodo 0 -> Levels[i] == step
             {                      // Nodo infetto al passo corrente
+                // printf("Nodo infetto [%d]: \n", i);
                 __m256i neighbors;
                 for (int j = 0; j < num_nodes; j += 32)
                 {
@@ -352,10 +382,10 @@ void simulate(int8_t p, int8_t q)
 
                     __m256i neighbors_infected = _mm256_and_si256(neighbors, final_mask);
                     __m256i old_Levels = _mm256_andnot_si256(neighbors_infected, Levels_SIMD);
-                    __m256i step_simd_AND_neighbors_infected = _mm256_and_si256(step_simd, neighbors_infected);
+                    __m256i step_simd_AND_neighbors_infected = _mm256_and_si256(step_simd_p1, neighbors_infected);
 
                     Levels_array[j / 32] = _mm256_add_epi8(step_simd_AND_neighbors_infected, old_Levels);
-                    // _mm256_store_si256((__m256i *)Levels+j/32, step_simd); // Extract all at once
+                    // _mm256_store_si256((__m256i *)Levels+j/32, step_simd_p1); // Extract all at once
 
                     __m256i mask_256 = _mm256_set1_epi8(254);
                     __m256i num_infected = _mm256_sub_epi8(neighbors_infected, mask_256);
@@ -371,27 +401,28 @@ void simulate(int8_t p, int8_t q)
                 else
                 {
                     // Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
-                    Levels_array[i / 32] = _mm256_add_epi8(Levels_array[i / 32], index_mask[i % 32]);
+                    __m256i simd_1_i = _mm256_and_si256(index_mask[i % 32], ones);
+                    Levels_array[i / 32] = _mm256_add_epi8(Levels_array[i / 32], simd_1_i);
                 }
             }
         }
-        for (int i = 0; i < num_nodes_32 / 32; i++)
-        {
-            _mm256_store_si256((__m256i *)Levels + i, Levels_array[i]);
-        }
+        // for (int i = 0; i < num_nodes_32 / 32; i++)
+        // {
+        //     _mm256_store_si256((__m256i *)Levels + i, Levels_array[i]);
+        // }
         step++;
-        //print_status(step, active_infections);
-        //  if (step == 1)
-        //  {
-        //      return;
-        //  }
+        step_simd = step_simd_p1;
+        //print_status(step, active_infections, Levels_array);
+        // if (step == 2)
+        // {
+        //     return;
+        // }
     }
 
-    // for (int i = 0; i < num_nodes_32 / 32; i++)
-    // {
-    //     _mm256_storeu_si256((__m256i *)Levels + i, Levels_array[i]);
-    //     //_mm256_storeu_si256((__m256i *)Immune+i, Immune_array[i]);
-    // }
+    for (int i = 0; i < num_nodes_32 / 32; i++)
+    {
+        _mm256_store_si256((__m256i *)Levels + i, Levels_array[i]);
+    }
 }
 
 int main(int argc, char *argv[])

@@ -6,6 +6,13 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 
+
+#ifdef _WIN32
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
+
 #define MAX_NODES 1000
 #define MAX_EDGES 10000
 
@@ -149,15 +156,15 @@ void simulate(double p, double q) {
             }
         }
         step++;
-        //print_status(step, active_infections);
+        print_status(step, active_infections);
     }
 }
 
 
 int main(int argc, char *argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 0.5; // Probabilità di infezione
-    double q = 0.8; // Probabilità di guarigione
+    double p = 1; // Probabilità di infezione
+    double q = 1; // Probabilità di guarigione
 
     import_network(argv[1]);
 

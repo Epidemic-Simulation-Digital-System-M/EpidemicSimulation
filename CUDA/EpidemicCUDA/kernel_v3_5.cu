@@ -95,10 +95,10 @@ void import_network(const char* filename) {
     int size_N = cJSON_GetArraySize(json_N);
     size_L = cJSON_GetArraySize(json_L);
 
-    N = (int*)malloc(size_N * sizeof(int));
-    L = (int*)malloc(size_L * sizeof(int));
-    Levels = (int*)malloc(num_nodes * sizeof(int));
-    Immune = (bool*)malloc(num_nodes * sizeof(bool));
+    cudaMallocHost((void**)&N, size_N * sizeof(int));
+    cudaMallocHost((void**)&L, size_L * sizeof(int));
+    cudaMallocHost((void**)&Levels, num_nodes * sizeof(int));
+    cudaMallocHost((void**)&Immune, num_nodes * sizeof(bool));
 
     for (int i = 0; i < size_N; i++) {
         N[i] = cJSON_GetArrayItem(json_N, i)->valueint;
@@ -159,6 +159,9 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
         final_index_block = num_nodes;
     }
 
+	//if (tid_in_warp == 0)
+	//	printf("Blocco %d Thread %d: Inizio warp %d Fine warp %d Inizio blocco %d\n", blockIdx.x, threadIdx.x, start_index_warp, final_index_warp, start_index_block);
+
     curandState state;
     curand_init(step, tid_in_warp, 0, &state);
 
@@ -197,7 +200,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     for (int i = start_index_warp - start_index_block; i < final_index_warp - start_index_block; i++) {
         
         if (d_Levels[i + start_index_block] == step) { //Il nodo è infetto 
-            //if(tid_in_warp==0)
+            //if(blockIdx.x==1 && threadIdx.x==0)
 			//	printf("Blocco %d Thread %d: Nodo %d\n", blockIdx.x, threadIdx.x, i + start_index_block);
 
             for (int j = shared_N[i] + tid_in_warp; j < shared_N[i + 1]; j += 32) {
@@ -236,8 +239,10 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 }
 
 void simulate(double p, double q) {
-    int active_infections = 1;
+    int* active_infections;
     int step = 0;
+    cudaMallocHost((void**)&active_infections, sizeof(int));
+	*active_infections = 1;
 
     //Device variables
     int* d_N, * d_L, * d_Levels;
@@ -254,24 +259,24 @@ void simulate(double p, double q) {
     cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_active_infections, active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    print_status(step, active_infections, d_Levels);
+    //print_status(step,*active_infections, d_Levels);
 
     int threadsPerBlock = 64;  
     int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
 
-    while (active_infections > 0) {
+    while (*active_infections > 0) {
 
         //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
         simulate_step << <gridSize, threadsPerBlock, sizeof(int)* (num_edges * threadsPerBlock + threadsPerBlock+1) >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
-   
+        
         cudaDeviceSynchronize();
 
-        cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
-        //print_status(step, active_infections, d_Levels);
+        //print_status(step, *active_infections, d_Levels);
        
     }
 
@@ -292,9 +297,9 @@ int main(int argc, char* argv[]) {
 
     double start_import = cpuSecond();
     import_network(argv[1]);
-    double end_import = cpuSecond();
-    printf("Import time: %f seconds\n", end_import - start_import);
-    
+	double end_import = cpuSecond();
+	printf("Import time: %f seconds\n", end_import - start_import);
+
     if(num_nodes<=50)
         print_network();
     
@@ -305,10 +310,10 @@ int main(int argc, char* argv[]) {
 
 	printf("Elapsed time: %f seconds\n", end - start);
 
-    free(N);
-    free(L);
-    free(Levels);
-    free(Immune);
+    cudaFreeHost(N);
+    cudaFreeHost(L);
+    cudaFreeHost(Levels);
+    cudaFreeHost(Immune);
 
     return 0;
 }

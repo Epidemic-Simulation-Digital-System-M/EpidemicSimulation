@@ -22,3 +22,5 @@ CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2.vcxproj
 CUDA/EpidemicCUDA_v2/EpidemicCUDA_v2.vcxproj.user
 
 GRAPH_GENERATOR/generate_graph.exe
+SEQUENTIAL/SIR_sequential
+SIMD/SIR_SIMD_matrix_v2

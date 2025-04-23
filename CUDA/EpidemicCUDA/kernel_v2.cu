@@ -207,7 +207,7 @@ void simulate(double p, double q) {
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    print_status(step, active_infections, d_Levels);
+    //print_status(step, active_infections, d_Levels);
 
     int threadsPerBlock = 32;  
     int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
@@ -220,7 +220,7 @@ void simulate(double p, double q) {
         cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
-        print_status(step, active_infections, d_Levels);
+        //print_status(step, active_infections, d_Levels);
        
     }
 
@@ -239,7 +239,10 @@ int main(int argc, char* argv[]) {
     double p = 1; // Probabilità di infezione
     double q = 1; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
     //print_network();
     

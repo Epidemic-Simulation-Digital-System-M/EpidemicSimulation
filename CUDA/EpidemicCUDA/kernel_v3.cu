@@ -256,7 +256,7 @@ void simulate(double p, double q) {
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(d_active_infections, &active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    print_status(step, active_infections, d_Levels);
+    //print_status(step, active_infections, d_Levels);
 
     int threadsPerBlock = 64;  
     int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;

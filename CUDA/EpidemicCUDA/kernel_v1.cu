@@ -230,10 +230,13 @@ void simulate(double p, double q) {
 
 int main(int argc, char* argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
-    double p = 0.8; // Probabilità di infezione
-    double q = 0.4; // Probabilità di guarigione
+    double p = 1; // Probabilità di infezione
+    double q = 1; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
     //print_network();
     

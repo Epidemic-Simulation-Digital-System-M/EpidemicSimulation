@@ -148,7 +148,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 
     int start_index = warp_id * nodesPerWarp;
 
-    int final_index = start_index + nodesPerWarp
+    int final_index = start_index + nodesPerWarp;
     if (final_index > num_nodes) {
         final_index = num_nodes;
     }

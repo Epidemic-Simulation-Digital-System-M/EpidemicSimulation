@@ -209,7 +209,7 @@ void simulate(double p, double q) {
 
     //print_status(step, active_infections, d_Levels);
 
-    int threadsPerBlock = 32;  
+    int threadsPerBlock = 64;  
     int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
 
     while (active_infections > 0) {

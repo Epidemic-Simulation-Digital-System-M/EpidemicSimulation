@@ -161,8 +161,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 
 
     curandState state;
-    curand_init(step, tid_in_warp, 0, &state);
-
+	bool is_init = false;
 	//Shared memory - Blocks 
 
     extern __shared__ int shared_Mem[];
@@ -190,13 +189,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     }
     __syncthreads();
 
-    if (tid_in_warp == 0) {
-        //printf("Block %d: Warp %d: Start index %d, Final index %d\n", blockIdx.x, warp_id, start_index_warp, final_index_warp);
-    }
-
 	//Graph traversal - Warps
-
-	
     
     //if (blockIdx.x == 0)
     //    printf("Block %d: Warp %d: Start index %d, Final index %d\n", blockIdx.x, warp_id, start_index_warp, final_index_warp);
@@ -206,6 +199,11 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
        
         if (d_Levels[i + start_index_block] == step) { //Il nodo è infetto 
            
+            if (!is_init) {
+                curand_init(0, threadIdx.x, 0, &state);
+                is_init = true;
+            }
+
             for (int j = shared_N[i] + tid_in_warp; j < shared_N[i + 1]; j += 32) {
               
                 int neighbor = shared_L[j - shared_N[0]];
@@ -226,6 +224,12 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
             }
             
             if (tid_in_warp == 0) {
+
+                if (!is_init) {
+                    curand_init(0, threadIdx.x, 0, &state);
+                    is_init = true;
+                }
+
                 if (curand_uniform(&state) < q) {
                     d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);

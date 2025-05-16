@@ -160,7 +160,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     }
 
     curandState state;
-    curand_init(step, tid_in_warp, 0, &state);
+	bool is_init = false;
 
 	//Shared memory - Blocks 
 
@@ -200,6 +200,11 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
             //if(tid_in_warp==0)
 			//	printf("Blocco %d Thread %d: Nodo %d\n", blockIdx.x, threadIdx.x, i + start_index_block);
 
+            if (!is_init) {
+                curand_init(0, threadIdx.x, 0, &state);
+                is_init = true;
+            }
+
             for (int j = shared_N[i] + tid_in_warp; j < shared_N[i + 1]; j += 32) {
               
                 int neighbor = shared_L[j - shared_N[0]];
@@ -220,6 +225,12 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
             }
             
             if (tid_in_warp == 0) {
+
+                if (!is_init) {
+                    curand_init(0, threadIdx.x, 0, &state);
+                    is_init = true;
+                }
+
                 if (curand_uniform(&state) < q) {
                     d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);

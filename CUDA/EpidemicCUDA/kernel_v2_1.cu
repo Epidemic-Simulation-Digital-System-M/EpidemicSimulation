@@ -154,10 +154,15 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     }
 
     curandState state;
-    curand_init(step, tid_in_warp, 0, &state);
+	bool is_init = false;
+
 
     for (int i = start_index; i < final_index; i++) {
         if (d_Levels[i] == step) { //Il nodo è infetto 
+			if (!is_init) {
+				curand_init(0, threadIdx.x, 0, &state);
+				is_init = true;
+			}
             for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j += 32) {
                 int neighbor = d_L[j];
                 //printf("Thread %d: Nodo %d Vicino %d\n", tid_in_warp,i, neighbor);
@@ -172,6 +177,10 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
                 }
             }
             if (tid_in_warp == 0) {
+				if (!is_init) {
+					curand_init(0, threadIdx.x, 0, &state);
+					is_init = true;
+                }
                 if (curand_uniform(&state) < q) {
                     d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);

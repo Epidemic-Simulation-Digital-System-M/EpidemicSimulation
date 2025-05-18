@@ -126,7 +126,7 @@ void print_network() {
     printf("\n");
 }
 
-void print_status(int step, int active_infections, int* d_Levels) {
+void print_status(int step, int active_infections, int* d_Levels, bool* d_Immune) {
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0) {
         cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
@@ -137,9 +137,18 @@ void print_status(int step, int active_infections, int* d_Levels) {
             }
         }
         printf("\n");
+
+
+		cudaMemcpy(Immune, d_Immune, num_nodes * sizeof(bool), cudaMemcpyDeviceToHost);
+		printf("Immune nodes: ");
+        for (int i = 0; i < num_nodes; i++) {
+            if (Immune[i] == true) {
+                printf("%d ", i);
+            }
+        }
+		printf("\n");
     }
 }
-
 
 __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune, int num_nodes, double p, double q, int step, int* d_active_infections, int nodesPerWarp, int nodesPerBlock) {
     int tid_in_warp = (threadIdx.x) % 32;
@@ -158,7 +167,6 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     if (final_index_block > num_nodes) {
         final_index_block = num_nodes;
     }
-
 
     curandState state;
 	bool is_init = false;
@@ -200,7 +208,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
         if (d_Levels[i + start_index_block] == step) { //Il nodo è infetto 
            
             if (!is_init) {
-                curand_init(0, threadIdx.x, 0, &state);
+                curand_init(step, threadIdx.x, 0, &state);
                 is_init = true;
             }
 
@@ -225,19 +233,14 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
             
             if (tid_in_warp == 0) {
 
-                if (!is_init) {
-                    curand_init(0, threadIdx.x, 0, &state);
-                    is_init = true;
-                }
-
                 if (curand_uniform(&state) < q) {
-                    d_Immune[i] = true; // Nodo recuperato                
+                    d_Immune[i + start_index_block] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
-                    //printf("Blocco %d Thread %d: Nodo %d guarito\n", blockIdx.x, threadIdx.x, i);
+                    //printf("Blocco %d Thread %d: Nodo %d guarito\n", blockIdx.x, threadIdx.x, i + start_index_block);
                 }
                 else {
-                    d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
-                    //printf("Thread %d: Nodo %d rimane infetto\n", tid_in_warp, i);
+                    d_Levels[i + start_index_block] = step + 1; // Nodo può infettare anche al prossimo step
+                    //printf("Blocco %d Thread %d: Nodo %d rimane infetto\n", blockIdx.x, threadIdx.x, i + start_index_block);
                 }
             }
         }
@@ -286,13 +289,13 @@ void simulate(double p, double q) {
         if (err != cudaSuccess) {
             printf("CUDA error: %s\n", cudaGetErrorString(err));
         }*/
+
         cudaDeviceSynchronize();
 
         cudaMemcpy(&active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
-        //print_status(step, active_infections, d_Levels);
-       
+        //print_status(step, active_infections, d_Levels, d_Immune);
     }
 
     cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);

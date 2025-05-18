@@ -234,12 +234,12 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
             if (tid_in_warp == 0) {
 
                 if (rand_uniform(prng_state) < q) {
-                    d_Immune[i] = true; // Nodo recuperato                
+                    d_Immune[i + start_index_block] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
                     //printf("Blocco %d Thread %d: Nodo %d guarito\n", blockIdx.x, threadIdx.x, i);
                 }
                 else {
-                    d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
+                    d_Levels[i + start_index_block] = step + 1; // Nodo può infettare anche al prossimo step
                     //printf("Thread %d: Nodo %d rimane infetto\n", tid_in_warp, i);
                 }
             }

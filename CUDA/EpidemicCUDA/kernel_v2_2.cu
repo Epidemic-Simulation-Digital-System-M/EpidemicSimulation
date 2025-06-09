@@ -224,7 +224,7 @@ void simulate(double p, double q) {
     //print_status(step, active_infections, d_Levels);
 
     int threadsPerBlock = 64;  
-    int nodesPerWarp = 10;
+    int nodesPerWarp = 3;
     // int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
     int warpNumber = (num_nodes+nodesPerWarp - 1)/ nodesPerWarp;
     int gridSize = (warpNumber + threadsPerBlock/ 32 - 1) * 32 / threadsPerBlock ;

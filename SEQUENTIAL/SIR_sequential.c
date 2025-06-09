@@ -155,8 +155,11 @@ int main(int argc, char *argv[]) {
     double q = 1; // Probabilità di guarigione
 
     import_network(argv[1]);
-
-    print_network();
+    // print_network();
+    clock_t start = clock();
     simulate(p,q);
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Simulation completed in %.2f seconds\n", time_spent);
     return 0;
 }

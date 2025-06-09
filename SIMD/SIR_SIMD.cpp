@@ -355,10 +355,11 @@ int main(int argc, char *argv[])
 
     import_network(argv[1]);
 
-    print_network();
-    uint64_t clock_counter_start = __rdtsc();
+    // print_network();
+    clock_t start = clock();
     simulate(p, q);
-    uint64_t clock_counter_end = __rdtsc();
-    printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+    clock_t end = clock();
+    double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Elapsed time: %lf seconds\n", elapsed_time);
     return 0;
 }

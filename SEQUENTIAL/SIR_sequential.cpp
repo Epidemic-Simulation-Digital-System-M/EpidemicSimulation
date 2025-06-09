@@ -169,10 +169,13 @@ int main(int argc, char *argv[]) {
     import_network(argv[1]);
 
     //print_network();
-    uint64_t clock_counter_start = __rdtsc();  
+    // uint64_t clock_counter_start = __rdtsc();  
+    clock_t start = clock();
     simulate(p,q);
-    uint64_t clock_counter_end = __rdtsc();  
-    printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+    // uint64_t clock_counter_end = __rdtsc();  
+    clock_t end = clock();
+    // printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+    printf("Elapsed time: %lf seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
 
     free(N);
     free(L);

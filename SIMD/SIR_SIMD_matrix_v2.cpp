@@ -283,7 +283,9 @@ void simulate(int8_t p, int8_t q)
     __m256i index_mask[32];
     for (int i = 0; i < 32; i++)
     {
-        uint8_t mask[32] = {0}; // Inizializza tutto a 0
+        // uint8_t mask[32] = {0}; // Inizializza tutto a 0
+        alignas(32) uint8_t mask[32] = {0};
+
         mask[i] = 0xFF;            // Per Impostare il byte i-esimo a -1 sostituisci con (0xFF)
         index_mask[i] = _mm256_load_si256((__m256i *)mask);
         //print__mm_register_epi8(index_mask[i]);
@@ -434,10 +436,13 @@ int main(int argc, char *argv[])
     import_network(argv[1]);
 
     //print_network();
-    uint64_t clock_counter_start = __rdtsc();
+    clock_t start = clock();
+
     simulate(p, q);
-    uint64_t clock_counter_end = __rdtsc();
-    printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+    clock_t end = clock();
+    double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Elapsed time: %lf seconds\n", elapsed_time);
+
     // FREE
     for (int i = 0; i < num_nodes; i++)
     {

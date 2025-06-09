@@ -1,4 +1,4 @@
-﻿
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <curand_kernel.h>
@@ -152,108 +152,59 @@ __device__ float rand_uniform(uint32_t& state) {
 }
 
 
-__global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune, int num_nodes, double p, double q, int step, int* d_active_infections) {
+__global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune, int num_nodes, double p, double q, int step, int* d_active_infections, int nodesPerWarp) {
     int tid_in_warp = (threadIdx.x) % 32;
+    
+    int warp_id = (threadIdx.x + blockIdx.x*blockDim.x) / 32;
 
-    int warp_id = (threadIdx.x + blockIdx.x * blockDim.x) / 32;
+    int start_index = warp_id * nodesPerWarp;
 
-    int start_index_warp = warp_id * 32;
-
-    int final_index_warp = start_index_warp + 32;
-    if (final_index_warp > num_nodes) {
-        final_index_warp = num_nodes;
+    int final_index = start_index + nodesPerWarp;
+    if (final_index > num_nodes) {
+        final_index = num_nodes;
     }
-
-    int start_index_block = blockIdx.x * blockDim.x;
-    int final_index_block = start_index_block + blockDim.x;
-    if (final_index_block > num_nodes) {
-        final_index_block = num_nodes;
-    }
-
-
-
-    //Shared memory - Blocks 
-
-    extern __shared__ int shared_Mem[];
-
-    int* shared_N = shared_Mem;
-
-    int* shared_L = shared_N + blockDim.x + 1;
-
-    // for (int i = 0; i < blockDim.x + 1 && start_index_block + i <= final_index_block;i++) {
-    if (threadIdx.x <= final_index_block - start_index_block) {
-        shared_N[threadIdx.x] = d_N[start_index_block + threadIdx.x];
-    }
-    if (threadIdx.x == 0) {
-        shared_N[final_index_block - start_index_block] = d_N[final_index_block];
-    }
-
-    __syncthreads();
-
-    int shared_L_size = shared_N[final_index_block - start_index_block] - shared_N[0];
-
-    for (int i = threadIdx.x; i < shared_L_size; i += blockDim.x) {
-        shared_L[i] = d_L[shared_N[0] + i];
-        //if (threadIdx.x == 0 ) 
-        //   printf("shared_L[%d] = %d \n", i, shared_L[i]);
-
-    }
-    __syncthreads();
-
-    //Graph traversal - Warps
 
     uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) * (step + 1);
 
 
-
-    for (int i = start_index_warp - start_index_block; i < final_index_warp - start_index_block; i++) {
-
-        if (d_Levels[i + start_index_block] == step) { //Il nodo è infetto 
-            //if(tid_in_warp==0)
-            //	printf("Blocco %d Thread %d: Nodo %d\n", blockIdx.x, threadIdx.x, i + start_index_block);
-
-
-            for (int j = shared_N[i] + tid_in_warp; j < shared_N[i + 1]; j += 32) {
-
-                int neighbor = shared_L[j - shared_N[0]];
-
-                //printf("Blocco %d Thread %d: Nodo %d Vicino %d\n",blockIdx.x, threadIdx.x,i + start_index_block, neighbor);
-
+    for (int i = start_index; i < final_index; i++) {
+        if (d_Levels[i] == step) { //Il nodo è infetto 
+			
+            for (int j = d_N[i] + tid_in_warp; j < d_N[i + 1]; j += 32) {
+                int neighbor = d_L[j];
+                //printf("Thread %d: Nodo %d Vicino %d\n", tid_in_warp,i, neighbor);
+				//printf("Random %f\n", rand_uniform(prng_state));
                 if (d_Levels[neighbor] == -1 && !d_Immune[neighbor] && (rand_uniform(prng_state) < p)) {
                     // Infetto al prossimo step
                     // Usa atomicCAS per evitare doppie infezioni
-
                     int old_level = atomicCAS(&d_Levels[neighbor], -1, step + 1);
                     if (old_level == -1) {  // Solo il primo thread che infetta il nodo lo conta
                         atomicAdd(d_active_infections, 1);
-                        //printf("Blocco %d Thread %d: Nodo %d infetta %d --- %d \n",blockIdx.x, threadIdx.x, i + start_index_block, neighbor,*d_active_infections );
+                        //printf("Thread %d Blocco %d: Nodo %d infetta %d\n", threadIdx.x,blockIdx.x, i, neighbor);
                     }
-
                 }
             }
 
             if (tid_in_warp == 0) {
-
                 if (rand_uniform(prng_state) < q) {
-                    d_Immune[i + start_index_block] = true; // Nodo recuperato                
+                    d_Immune[i] = true; // Nodo recuperato                
                     atomicSub(d_active_infections, 1);
-                    //printf("Blocco %d Thread %d: Nodo %d guarito\n", blockIdx.x, threadIdx.x, i);
+                    //printf("Thread %d Blocco %d: Nodo %d guarito\n", threadIdx.x, blockIdx.x, i);
                 }
                 else {
-                    d_Levels[i + start_index_block] = step + 1; // Nodo può infettare anche al prossimo step
-                    //printf("Thread %d: Nodo %d rimane infetto\n", tid_in_warp, i);
+                    d_Levels[i] = step + 1; // Nodo può infettare anche al prossimo step
+                    //printf("Thread %d Blocco %d: Nodo %d rimane infetto\n", threadIdx.x, blockIdx.x, i);
                 }
             }
         }
     }
-    __syncthreads();
 }
 
 void simulate(double p, double q) {
     int* active_infections;
     int step = 0;
     cudaMallocHost((void**)&active_infections, sizeof(int));
-	*active_infections = 1;
+    *active_infections = 1;
 
     //Device variables
     int* d_N, * d_L, * d_Levels;
@@ -272,18 +223,20 @@ void simulate(double p, double q) {
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(d_active_infections, active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    //print_status(step,*active_infections, d_Levels);
+    //print_status(step, active_infections, d_Levels);
 
     int threadsPerBlock = 64;  
-    int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
+    int nodesPerWarp = 10;
+    // int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
+    int warpNumber = (num_nodes+nodesPerWarp - 1)/ nodesPerWarp;
+    int gridSize = (warpNumber + threadsPerBlock/ 32 - 1) * 32 / threadsPerBlock ;
+
+
 
     while (*active_infections > 0) {
 
-        //Scegliendo blocchi di dimensione 32 un blocco corrisponde a un warp
-        simulate_step << <gridSize, threadsPerBlock, sizeof(int)* (num_edges * threadsPerBlock + threadsPerBlock+1) >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections);
-        
+        simulate_step << <gridSize, threadsPerBlock >> > (d_N, d_L, d_Levels, d_Immune, num_nodes, p, q, step, d_active_infections, nodesPerWarp);
         cudaDeviceSynchronize();
-
         cudaMemcpy(active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
@@ -299,7 +252,7 @@ void simulate(double p, double q) {
     cudaFree(d_Levels);
     cudaFree(d_Immune);
     cudaFree(d_active_infections);
-	cudaFreeHost(active_infections);  
+    cudaFreeHost(active_infections);
 }
 
 int main(int argc, char* argv[]) {
@@ -309,11 +262,10 @@ int main(int argc, char* argv[]) {
 
     double start_import = cpuSecond();
     import_network(argv[1]);
-	double end_import = cpuSecond();
-	printf("Import time: %f seconds\n", end_import - start_import);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
-    if(num_nodes<=50)
-        print_network();
+    //print_network();
     
 	printf("Simulating with p=%f, q=%f\n", p, q);
     double start = cpuSecond();

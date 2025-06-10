@@ -169,13 +169,18 @@ int main(int argc, char *argv[]) {
     import_network(argv[1]);
 
     //print_network();
-    // uint64_t clock_counter_start = __rdtsc();  
-    clock_t start = clock();
+
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     simulate(p,q);
-    // uint64_t clock_counter_end = __rdtsc();  
-    clock_t end = clock();
-    // printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
-    printf("Elapsed time: %lf seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long seconds = end.tv_sec - start.tv_sec;
+    long nanoseconds = end.tv_nsec - start.tv_nsec;
+    double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
+    printf("Elapsed time: %.3f ms\n", elapsed_ms);
 
     free(N);
     free(L);

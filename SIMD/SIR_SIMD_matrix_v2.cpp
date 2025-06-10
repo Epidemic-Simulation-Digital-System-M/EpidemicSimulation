@@ -434,14 +434,20 @@ int main(int argc, char *argv[])
     int8_t q = 100; // Probabilità di guarigione
 
     import_network(argv[1]);
-
     //print_network();
-    clock_t start = clock();
+    
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
 
     simulate(p, q);
-    clock_t end = clock();
-    double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Elapsed time: %lf seconds\n", elapsed_time);
+    
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long seconds = end.tv_sec - start.tv_sec;
+    long nanoseconds = end.tv_nsec - start.tv_nsec;
+    double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
+    printf("Elapsed time: %.3f ms\n", elapsed_ms);
 
     // FREE
     for (int i = 0; i < num_nodes; i++)

@@ -427,6 +427,13 @@ void simulate(int8_t p, int8_t q)
     }
 }
 
+double cpuSecond() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    printf("Time: %ld seconds, %ld nanoseconds\n", ts.tv_sec, ts.tv_nsec);
+    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
+}
+
 int main(int argc, char *argv[])
 {
     // Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
@@ -436,18 +443,12 @@ int main(int argc, char *argv[])
     import_network(argv[1]);
     //print_network();
     
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-
+    double start_time = cpuSecond();
     simulate(p, q);
     
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    double end_time = cpuSecond();
 
-    long seconds = end.tv_sec - start.tv_sec;
-    long nanoseconds = end.tv_nsec - start.tv_nsec;
-    double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
-    printf("Elapsed time: %.3f ms\n", elapsed_ms);
+    printf("Elapsed time: %f seconds\n", end_time - start_time);
 
     // FREE
     for (int i = 0; i < num_nodes; i++)

@@ -5,6 +5,7 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
+#include <unistd.h>  
 
 
 #ifdef _WIN32
@@ -156,10 +157,16 @@ void simulate(double p, double q) {
             }
         }
         step++;
-        print_status(step, active_infections);
+        //print_status(step, active_infections);
     }
 }
 
+double cpuSecond() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    printf("Time: %ld seconds, %ld nanoseconds\n", ts.tv_sec, ts.tv_nsec);
+    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
+}
 
 int main(int argc, char *argv[]) {
     //Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
@@ -171,16 +178,13 @@ int main(int argc, char *argv[]) {
     //print_network();
 
     struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    double start_time = cpuSecond();
 
     simulate(p,q);
 
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    long seconds = end.tv_sec - start.tv_sec;
-    long nanoseconds = end.tv_nsec - start.tv_nsec;
-    double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
-    printf("Elapsed time: %.3f ms\n", elapsed_ms);
+    double end_time = cpuSecond();
+    
+    printf("Elapsed time (cpuSecond): %f seconds\n", end_time - start_time);
 
     free(N);
     free(L);

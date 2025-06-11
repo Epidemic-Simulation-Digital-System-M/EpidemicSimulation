@@ -21,6 +21,7 @@ int* N; // Indici dell'inizio dei vicini per ogni nodo
 int* L; // Lista di adiacenza compressa
 int* Levels; // Momento dell'infezione: istante in cui viene infettato
 bool* Immune; // Stato di immunità
+int* active_infections; // Numero di infezioni attive
 
 int num_nodes;
 int num_edges;
@@ -201,9 +202,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 }
 
 void simulate(double p, double q) {
-    int* active_infections;
     int step = 0;
-    cudaMallocHost((void**)&active_infections, sizeof(int));
     *active_infections = 1;
 
     //Device variables
@@ -261,6 +260,7 @@ int main(int argc, char* argv[]) {
     double q = 1; // Probabilità di guarigione
 
     double start_import = cpuSecond();
+    cudaMallocHost((void**)&active_infections, sizeof(int));
     import_network(argv[1]);
     double end_import = cpuSecond();
     printf("Import time: %f seconds\n", end_import - start_import);

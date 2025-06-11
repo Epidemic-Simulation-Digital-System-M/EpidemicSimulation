@@ -5,6 +5,7 @@
 #include "lib/cJSON.h"
 #include <emmintrin.h>
 #include <immintrin.h>
+#include <unistd.h>  
 
 
 #ifdef _WIN32
@@ -156,7 +157,7 @@ void simulate(double p, double q) {
             }
         }
         step++;
-        print_status(step, active_infections);
+        //print_status(step, active_infections);
     }
 }
 
@@ -180,7 +181,8 @@ int main(int argc, char *argv[]) {
     long seconds = end.tv_sec - start.tv_sec;
     long nanoseconds = end.tv_nsec - start.tv_nsec;
     double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
-    printf("Elapsed time: %.3f ms\n", elapsed_ms);
+    
+    printf("Elapsed time: %.2f ms\n", elapsed_ms);
 
     free(N);
     free(L);

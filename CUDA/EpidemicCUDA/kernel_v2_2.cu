@@ -263,7 +263,7 @@ int main(int argc, char* argv[]) {
     printf("Import time: %f seconds\n", end_import - start_import);
 
     //print_network();
-    
+
 	printf("Simulating with p=%f, q=%f\n", p, q);
     double start = cpuSecond();
     simulate(p, q);

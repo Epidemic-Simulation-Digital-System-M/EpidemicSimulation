@@ -145,7 +145,7 @@ void simulate(double p, double q) {
     //print_status(step, active_infections);
 
     while (active_infections > 0) {
-        double start = cpuSecond();
+        //double start = cpuSecond();
         for (int i = 0; i < num_nodes; i++) {
             if (Levels[i] == step) { // Nodo infetto al passo corrente
                 for (int j = N[i]; j < N[i + 1]; j++) {
@@ -164,8 +164,8 @@ void simulate(double p, double q) {
             }
         }
         step++;
-        double end = cpuSecond();
-        printf("Step %d: %fs elapsed time\n", step, end - start);
+        //double end = cpuSecond();
+        //printf("Step %d: %fs elapsed time\n", step, end - start);
         //print_status(step, active_infections);
     }
 }

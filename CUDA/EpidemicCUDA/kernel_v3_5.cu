@@ -204,6 +204,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) * (step + 1);
     //printf("prng_state %d\n", prng_state);
 
+    const int base = shared_N[0];
 
     for (int i = start_index_warp - start_index_block; i < final_index_warp - start_index_block; i++) {
 
@@ -211,7 +212,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
 
             for (int j = shared_N[i] + tid_in_warp; j < shared_N[i + 1]; j += 32) {
 
-                int neighbor = shared_L[j - shared_N[0]];
+                int neighbor = shared_L[j - base];
 
                 //printf("Blocco %d Thread %d: Nodo %d Vicino %d\n",blockIdx.x, threadIdx.x,i + start_index_block, neighbor);
 

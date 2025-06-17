@@ -305,25 +305,25 @@ int main(int argc, char *argv[])
 
     printf("#2\n");
     printf("Simulating with p=%f, q=%f\n", p, q);
-    double start = cpuSecond();
+    start = cpuSecond();
     simulate(p, q);
-    double end = cpuSecond();
+    end = cpuSecond();
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
 
     printf("#3\n");
     printf("Simulating with p=%f, q=%f\n", p, 0.8);
-    double start = cpuSecond();
+    start = cpuSecond();
     simulate(p, 0.8);
-    double end = cpuSecond();
+    end = cpuSecond();
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
 
     printf("#4\n");
     printf("Simulating with p=%f, q=%f\n", 0.8, 0.6);
-    double start = cpuSecond();
+    start = cpuSecond();
     simulate(0.8, 0.6);
-    double end = cpuSecond();
+    end = cpuSecond();
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
 

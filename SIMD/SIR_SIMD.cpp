@@ -224,7 +224,7 @@ void simulate(double p, double q)
     __m256i minus1 = _mm256_set1_epi32(-1);
     __m256i zeros = _mm256_set1_epi32(0);
 
-    print_status(step, active_infections);
+    //print_status(step, active_infections);
 
     while (active_infections > 0)
     {
@@ -349,7 +349,7 @@ void simulate(double p, double q)
             }
         }
         step++;
-        print_status(step, active_infections);
+        //print_status(step, active_infections);
         // if(step == 1){
         //     return;
         // }

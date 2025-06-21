@@ -6,6 +6,7 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 #include <random>
+#include <unistd.h>  
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -24,6 +25,12 @@ int8_t* Immune;  // Stato di immunità passa da bool a int
 int num_nodes;
 int num_nodes_32;
 int num_edges;
+
+double cpuSecond() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
+}
 
 char *read_file(const char *filename)
 {
@@ -427,28 +434,23 @@ void simulate(int8_t p, int8_t q)
     }
 }
 
-double cpuSecond() {
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    printf("Time: %ld seconds, %ld nanoseconds\n", ts.tv_sec, ts.tv_nsec);
-    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
-}
-
 int main(int argc, char *argv[])
 {
     // Selezionando p=1 e q=1 otteniamo una ricerca in ampiezza
     int8_t p = 100; // Probabilità di infezione
     int8_t q = 100; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
-    //print_network();
-    
-    double start_time = cpuSecond();
-    simulate(p, q);
-    
-    double end_time = cpuSecond();
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
-    printf("Elapsed time: %f seconds\n", end_time - start_time);
+    
+    printf("Simulating with p=%f, q=%f\n", p, q);
+    double start = cpuSecond();
+    simulate(p, q);
+    double end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
 
     // FREE
     for (int i = 0; i < num_nodes; i++)

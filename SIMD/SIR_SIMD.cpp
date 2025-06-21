@@ -6,6 +6,7 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 #include <random>
+#include <unistd.h>
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -24,6 +25,13 @@ int *Immune; // Stato di immunità passa da bool a int
 
 int num_nodes;
 int num_edges;
+
+double cpuSecond()
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
+}
 
 char *read_file(const char *filename)
 {
@@ -153,7 +161,9 @@ void print_status(int step, int active_infections)
             {
                 printf("%d ", i);
             }
-            else{}
+            else
+            {
+            }
         }
         printf("\n");
         /*
@@ -203,7 +213,7 @@ void print__mm_register_epi32(__m256i reg)
 //     }
 
 //     return _mm256_load_ps(values); // Load values into an AVX register
-// }   
+// }
 
 void simulate(double p, double q)
 {
@@ -224,8 +234,7 @@ void simulate(double p, double q)
             {                                            // Nodo infetto al passo corrente
                 int num_neighbors = N[i + 1] - N[i];
                 int remainder = num_neighbors % 8;
-                //printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
-
+                // printf("num_neighbors: %d, remainder: %d\n", num_neighbors, remainder);
 
                 __m256i neighbors;
 
@@ -234,7 +243,7 @@ void simulate(double p, double q)
 
                     neighbors = _mm256_loadu_si256((__m256i *)&L[N[i] + j]);
 
-                    if ((j+8) > num_neighbors && remainder > 0)
+                    if ((j + 8) > num_neighbors && remainder > 0)
                     { // ultimo vettore
                         __m256i mask = _mm256_set_epi32(
                             0,
@@ -257,23 +266,21 @@ void simulate(double p, double q)
                     __m256i mask_susceptible = _mm256_cmpeq_epi32(Levels_SIMD, minus1);
                     __m256i mask_not_immune = _mm256_cmpeq_epi32(Immune_SIMD, zeros);
                     __m256i infection_mask = _mm256_and_si256(mask_susceptible, mask_not_immune);
-                    
+
                     // printf("Infection Mask: \n");
                     // print__mm_register_epi32(infection_mask);
 
                     // __m256 random = random_m256_01();
                     __m256 random = _mm256_set_ps(
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX,
-                        (float)rand()/RAND_MAX
-                    );
-   
-                    
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX,
+                        (float)rand() / RAND_MAX);
+
                     __m256 infection_probability = _mm256_cmp_ps(random, probability, _CMP_LT_OS);
                     // printf("Infection Probability: \n");
                     // print__mm_register_ps(infection_probability);
@@ -285,38 +292,46 @@ void simulate(double p, double q)
                     // print__mm_register_epi32(neighbors_infected);
                     //_mm256_maskstore_epi32(Levels, neighbors_infected, _mm256_set1_epi32(step + 1));
 
-                    alignas(32) int indices[8]; // Store extracted indices
-                    _mm256_store_si256((__m256i*)indices, neighbors_infected); // Extract all at once
+                    alignas(32) int indices[8];                                 // Store extracted indices
+                    _mm256_store_si256((__m256i *)indices, neighbors_infected); // Extract all at once
 
-                    if (indices[0] != 0){
+                    if (indices[0] != 0)
+                    {
                         Levels[indices[0]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[1] != 0){
+                    if (indices[1] != 0)
+                    {
                         Levels[indices[1]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[2] != 0){
+                    if (indices[2] != 0)
+                    {
                         Levels[indices[2]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[3] != 0){
+                    if (indices[3] != 0)
+                    {
                         Levels[indices[3]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[4] != 0){
+                    if (indices[4] != 0)
+                    {
                         Levels[indices[4]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[5] != 0){
+                    if (indices[5] != 0)
+                    {
                         Levels[indices[5]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[6] != 0){
+                    if (indices[6] != 0)
+                    {
                         Levels[indices[6]] = step + 1;
                         active_infections++;
                     }
-                    if (indices[7] != 0){
+                    if (indices[7] != 0)
+                    {
                         Levels[indices[7]] = step + 1;
                         active_infections++;
                     }
@@ -353,19 +368,16 @@ int main(int argc, char *argv[])
     double p = 1; // Probabilità di infezione
     double q = 1; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
-    // print_network();
-    
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
+    printf("Simulating with p=%f, q=%f\n", p, q);
+    double start = cpuSecond();
     simulate(p, q);
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long seconds = end.tv_sec - start.tv_sec;
-    long nanoseconds = end.tv_nsec - start.tv_nsec;
-    double elapsed_ms = seconds * 1000.0 + nanoseconds / 1.0e6;
+    double end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
 
     return 0;
 }

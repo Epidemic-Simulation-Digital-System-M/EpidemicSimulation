@@ -7,6 +7,7 @@
 #include <immintrin.h>
 #include <random>
 #include <cstdint>
+#include <unistd.h>  
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -29,6 +30,12 @@ int* Immune;
 
 int num_nodes;
 int num_edges;
+
+double cpuSecond() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return ((double)ts.tv_sec + (double)ts.tv_nsec * 1.e-9);
+}
 
 char *read_file(const char *filename)
 {
@@ -522,12 +529,16 @@ int main(int argc, char *argv[])
     int p = 1000; // Probabilità di infezione
     int q = 1000; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
-    print_network();
-    uint64_t clock_counter_start = __rdtsc();
+
+    printf("Simulating with p=%f, q=%f\n", p, q);
+    double start = cpuSecond();
     simulate(p, q);
-    uint64_t clock_counter_end = __rdtsc();
-    printf("Elapsed time: %lu\n", clock_counter_end - clock_counter_start);
+    double end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
     return 0;
 }

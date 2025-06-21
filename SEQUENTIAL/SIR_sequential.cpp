@@ -175,18 +175,44 @@ int main(int argc, char *argv[]) {
     double p = 1; // Probabilità di infezione
     double q = 1; // Probabilità di guarigione
 
+    double start_import = cpuSecond();
     import_network(argv[1]);
+    double end_import = cpuSecond();
+    printf("Import time: %f seconds\n", end_import - start_import);
 
     //print_network();
 
-    struct timespec start, end;
-    double start_time = cpuSecond();
+    printf("#1------------\n");
+    printf("Simulating with p=%f, q=%f\n", p, q);
+    double start = cpuSecond();
+    simulate(p, q);
+    double end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
+    printf("-------------\n");
 
-    simulate(p,q);
+    printf("#2\n");
+    printf("Simulating with p=%f, q=%f\n", p, q);
+    start = cpuSecond();
+    simulate(p, q);
+    end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
+    printf("-------------\n");
 
-    double end_time = cpuSecond();
-    
-    printf("Elapsed time (cpuSecond): %f seconds\n", end_time - start_time);
+    printf("#3\n");
+    printf("Simulating with p=%f, q=%f\n", p, 0.8);
+    start = cpuSecond();
+    simulate(p, 0.8);
+    end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
+    printf("-------------\n");
+
+    printf("#4\n");
+    printf("Simulating with p=%f, q=%f\n", 0.8, 0.6);
+    start = cpuSecond();
+    simulate(0.8, 0.6);
+    end = cpuSecond();
+    printf("Elapsed time: %f seconds\n", end - start);
+    printf("-------------\n");
 
     free(N);
     free(L);

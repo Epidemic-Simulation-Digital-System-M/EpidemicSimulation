@@ -535,7 +535,7 @@ int main(int argc, char *argv[])
     printf("Import time: %f seconds\n", end_import - start_import);
 
 
-    printf("Simulating with p=%f, q=%f\n", p, q);
+    printf("Simulating with p=%d, q=%d\n", p, q);
     double start = cpuSecond();
     simulate(p, q);
     double end = cpuSecond();

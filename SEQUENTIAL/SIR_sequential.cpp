@@ -67,6 +67,15 @@ char *read_file(const char *filename) {
     return json_string;
 }
 
+void reset_Levels_and_Immune() {
+    for (int i = 0; i < num_nodes; i++) {
+        Levels[i] = -1; // Inizializza tutti i nodi come non infetti
+        Immune[i] = false; // Inizializza tutti i nodi come non immuni
+    }
+    Levels[0] = 0; // Il nodo 0 è infetto al passo 0
+    Immune[0] = false; // Il nodo 0 non è immune
+}
+
 void import_network(const char *filename) {
     char filepath[256];
     snprintf(filepath, sizeof(filepath), "../GRAPH_GENERATOR/%s", filename);
@@ -99,18 +108,7 @@ void import_network(const char *filename) {
     Levels = (int *)malloc(num_nodes * sizeof(int));
     Immune = (bool *)malloc(num_nodes * sizeof(bool));
 
-    for (int i = 0; i < size_N; i++) {
-        N[i] = cJSON_GetArrayItem(json_N, i)->valueint;
-    }
-    for (int i = 0; i < size_L; i++) {
-        L[i] = cJSON_GetArrayItem(json_L, i)->valueint;
-    }    
-
-    for(int i=0;i<num_nodes;i++){
-        Levels[i] = -1; // Non infetto
-        Immune[i] = false;  // Non immune
-    }
-    Levels[0] = 0; // Nodo inizialmente infetto al tempo 0
+    reset_Levels_and_Immune();
 }
 
 void print_network(){
@@ -190,6 +188,8 @@ int main(int argc, char *argv[]) {
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
 
+    reset_Levels_and_Immune(); // Reset Levels and Immune arrays for next simulation
+
     printf("#2\n");
     printf("Simulating with p=%f, q=%f\n", p, q);
     start = cpuSecond();
@@ -198,6 +198,8 @@ int main(int argc, char *argv[]) {
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
 
+    reset_Levels_and_Immune(); 
+
     printf("#3\n");
     printf("Simulating with p=%f, q=%f\n", p, 0.8);
     start = cpuSecond();
@@ -205,6 +207,8 @@ int main(int argc, char *argv[]) {
     end = cpuSecond();
     printf("Elapsed time: %f seconds\n", end - start);
     printf("-------------\n");
+
+    reset_Levels_and_Immune();
 
     printf("#4\n");
     printf("Simulating with p=%f, q=%f\n", 0.8, 0.6);

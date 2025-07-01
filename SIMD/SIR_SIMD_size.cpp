@@ -325,7 +325,7 @@ void simulate(int p, int q)
     __m256i minus1 = _mm256_set1_epi8(-1);
     __m256i zeros = _mm256_set1_epi8(0);
 
-    print_status(step, active_infections);
+    //print_status(step, active_infections);
 
     while (active_infections > 0)
     {
@@ -426,10 +426,10 @@ void simulate(int p, int q)
 
                     //Levels_SIMD1 = _mm256_and_si256(Levels_SIMD1, extract_high_mask);
 
-                    printf("n_out1: \n");
-                    print__mm_register_epi32(n_out1);
-                    printf("Levels_SIMD1 after mask: \n");
-                    print__mm_register_epi8(Levels_SIMD1);
+                    // printf("n_out1: \n");
+                    // print__mm_register_epi32(n_out1);
+                    // printf("Levels_SIMD1 after mask: \n");
+                    // print__mm_register_epi8(Levels_SIMD1);
                     // print__mm_register_epi32(Immune_SIMD1);
 
                        // Convert and merge
@@ -510,10 +510,7 @@ void simulate(int p, int q)
             }
         }
         step++;
-        print_status(step, active_infections);
-        if(step == 1){
-            return;
-        }
+        //print_status(step, active_infections);
     }
 
     // FREE

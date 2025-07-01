@@ -108,6 +108,13 @@ void import_network(const char *filename) {
     Levels = (int *)malloc(num_nodes * sizeof(int));
     Immune = (bool *)malloc(num_nodes * sizeof(bool));
 
+    for (int i = 0; i < size_N; i++) {
+        N[i] = cJSON_GetArrayItem(json_N, i)->valueint;
+    }
+    for (int i = 0; i < size_L; i++) {
+        L[i] = cJSON_GetArrayItem(json_L, i)->valueint;
+    }    
+
     reset_Levels_and_Immune();
 }
 

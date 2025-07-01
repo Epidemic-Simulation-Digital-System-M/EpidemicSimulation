@@ -21,6 +21,11 @@ int *Levels;            // Momento dell'infezione: istante in cui viene infettat
 bool *Immune;           // Stato di immunità
 int *active_infections; // Numero di infezioni attive
 
+// Device variables
+int* d_N, * d_L, * d_Levels;
+bool* d_Immune;
+int* d_active_infections;
+
 int num_nodes;
 int num_edges;
 int size_L;
@@ -146,16 +151,20 @@ void print_status(int step, int active_infections, int *d_Levels)
     printf("Step %d: %d active infections\n", step, active_infections);
     if (active_infections > 0)
     {
-        cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
+		// I valori non vengono copiati direttamente su Levels, ma su un array temporaneo 
+        // per evitare di dover resettarlo rima di una nuova simulazione
+        int * p_Levels = (int*)malloc(num_nodes * sizeof(int)); 
+        cudaMemcpy(p_Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
         printf("Infected nodes: ");
         for (int i = 0; i < num_nodes; i++)
         {
-            if (Levels[i] == step)
+            if (p_Levels[i] == step)
             {
                 printf("%d ", i);
             }
         }
         printf("\n");
+        free(p_Levels);
     }
 }
 
@@ -187,6 +196,7 @@ __global__ void simulate_step(int *d_N, int *d_L, int *d_Levels, bool *d_Immune,
     }
 
     uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) + (step + 1);
+    //uint32_t prng_state =  ((threadIdx.x + blockIdx.x * blockDim.x) * (step + 1))+step;
 
     for (int i = start_index; i < final_index; i++)
     {
@@ -234,28 +244,14 @@ void simulate(double p, double q)
     int step = 0;
     *active_infections = 1;
 
-    // Device variables
-    int *d_N, *d_L, *d_Levels;
-    bool *d_Immune;
-    int *d_active_infections;
-
-    cudaMalloc(&d_N, (num_nodes + 1) * sizeof(int));
-    cudaMalloc(&d_L, size_L * sizeof(int));
-    cudaMalloc(&d_Levels, num_nodes * sizeof(int));
-    cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
-    cudaMalloc(&d_active_infections, sizeof(int));
-
-    cudaMemcpy(d_N, N, (num_nodes + 1) * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Levels, Levels, num_nodes * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Immune, Immune, num_nodes * sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(d_active_infections, active_infections, sizeof(int), cudaMemcpyHostToDevice);
 
-    // print_status(step, active_infections, d_Levels);
+    //print_status(step, *active_infections, d_Levels);
 
     int threadsPerBlock = 64;
     int nodesPerWarp = 3;
-    // int gridSize = (num_nodes + threadsPerBlock - 1) / threadsPerBlock;
     int warpNumber = (num_nodes + nodesPerWarp - 1) / nodesPerWarp;
     int gridSize = (warpNumber + threadsPerBlock / 32 - 1) * 32 / threadsPerBlock;
 
@@ -267,18 +263,9 @@ void simulate(double p, double q)
         cudaMemcpy(active_infections, d_active_infections, sizeof(int), cudaMemcpyDeviceToHost);
 
         step++;
-        // print_status(step, *active_infections, d_Levels);
+        //print_status(step, *active_infections, d_Levels);
     }
 
-    //cudaMemcpy(Levels, d_Levels, num_nodes * sizeof(int), cudaMemcpyDeviceToHost);
-    //cudaMemcpy(Immune, d_Immune, num_nodes * sizeof(bool), cudaMemcpyDeviceToHost);
-
-    cudaFree(d_N);
-    cudaFree(d_L);
-    cudaFree(d_Levels);
-    cudaFree(d_Immune);
-    cudaFree(d_active_infections);
-    cudaFreeHost(active_infections);
 }
 
 int main(int argc, char *argv[])
@@ -288,8 +275,19 @@ int main(int argc, char *argv[])
     double q = 1; // Probabilità di guarigione
 
     double start_import = cpuSecond();
+
     cudaMallocHost((void **)&active_infections, sizeof(int));
     import_network(argv[1]);
+    
+    cudaMalloc(&d_N, (num_nodes + 1) * sizeof(int));
+    cudaMalloc(&d_L, size_L * sizeof(int));
+    cudaMalloc(&d_Levels, num_nodes * sizeof(int));
+    cudaMalloc(&d_Immune, num_nodes * sizeof(bool));
+    cudaMalloc(&d_active_infections, sizeof(int));
+
+    cudaMemcpy(d_N, N, (num_nodes + 1) * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_L, L, size_L * sizeof(int), cudaMemcpyHostToDevice);
+
     double end_import = cpuSecond();
     printf("Import time: %f seconds\n", end_import - start_import);
 
@@ -331,6 +329,13 @@ int main(int argc, char *argv[])
     cudaFreeHost(L);
     cudaFreeHost(Levels);
     cudaFreeHost(Immune);
+
+    cudaFree(d_N);
+    cudaFree(d_L);
+    cudaFree(d_Levels);
+    cudaFree(d_Immune);
+    cudaFree(d_active_infections);
+    cudaFreeHost(active_infections);
 
     return 0;
 }

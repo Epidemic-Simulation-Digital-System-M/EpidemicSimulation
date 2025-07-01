@@ -202,7 +202,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
     //if (blockIdx.x == 0)
     //    printf("Block %d: Warp %d: Start index %d, Final index %d\n", blockIdx.x, warp_id, start_index_warp, final_index_warp);
     
-    uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) * (step + 1);
+    uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) + (step + 1);
 	//printf("prng_state %d\n", prng_state);
 
 

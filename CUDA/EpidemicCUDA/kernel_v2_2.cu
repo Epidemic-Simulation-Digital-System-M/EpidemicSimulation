@@ -164,7 +164,7 @@ __global__ void simulate_step(int* d_N, int* d_L, int* d_Levels, bool* d_Immune,
         final_index = num_nodes;
     }
 
-    uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) * (step + 1);
+    uint32_t prng_state = ((uintptr_t)&prng_state) + (threadIdx.x + blockIdx.x * blockDim.x) + (step + 1);
 
 
     for (int i = start_index; i < final_index; i++) {

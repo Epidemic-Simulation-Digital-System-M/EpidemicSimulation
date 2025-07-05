@@ -17,7 +17,12 @@ This is the sequential code of the Epidemic Simulation
 ## CUDA
 - To compile this code ```nvcc ./kernel.cu lib/cJSON.c -o ./kernel```
 
+### Versions:
+- kernel_v1 : naïve version.
+- kernel_v2 : grid dimension uptaded.
+- kernel_v2_1 : *nodesPerWarp* is now a parameter.
+- kernel_v2_2 : *xorshift32* introduced.
+- kernel_v2_5 : pinned memory.
+- kernel_opt : optimized version for multiple simulations on the same graph.
 
-### Step
-- 1 Warp dove i suoi threads partono da punti diversi della rete (facendo in modo che il carico di nodi da esplorare sia bilanciato)
-- Ogni Threads Esploratore genera altro warp (se il nodo che sta verificando è infetto) per "esplorare" i nodi vicini
+  kernel_v3_x are the same but with shared memory.
